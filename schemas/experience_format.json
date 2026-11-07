@@ -4,5 +4,12 @@
   "start_date": "2025-05",
   "end_date": "2025-08",
   "location": "Mountain View, CA",
+  "skills": [
+    "C++",
+    "Redis",
+    "Protocol Buffers",
+    "Distributed Systems",
+    "Unit Testing"
+  ],
   "context": "Software Engineering Intern at Google Search Infrastructure. Engineered an asynchronous event-driven pipeline in C++ processing 50M+ document updates daily, reducing latency by 32%. Implemented distributed caching with Redis and Protocol Buffers, cutting p99 query response time from 120ms to 45ms. Authored 40+ unit and integration tests achieving 94% test coverage."
 }
