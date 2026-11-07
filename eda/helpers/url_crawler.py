@@ -1,20 +1,20 @@
 """
-Async recursive URL crawler with keyword filtering.
+Async recursive URL crawler.
 
 Given a starting URL, concurrently discovers all links and returns
-only those whose URL path or anchor text matches configurable keywords.
-Uses asyncio + aiohttp for parallelism, a priority queue to explore
-likely-relevant URLs first, and path exclusions to skip dead ends.
+discovered URLs. Optionally filters by configurable keywords in the URL
+path or anchor text. Uses asyncio + aiohttp for parallelism and a
+priority queue.
 
 Usage (sync wrapper — works in notebooks and scripts):
     from url_crawler import crawl
 
-    # Default keywords target career/resume pages
+    # Crawl without keyword filtering (returns all discovered URLs)
     urls = crawl("https://www.aamu.edu", max_depth=3)
 
-    # Custom keywords
+    # Optional keyword filtering
     urls = crawl("https://www.aamu.edu", max_depth=3,
-                 keywords=["scholarship", "financial-aid"])
+                 keywords=["career", "resume"])
 
     # Crawl multiple schools at once
     from url_crawler import crawl_batch
@@ -25,15 +25,9 @@ from __future__ import annotations
 
 import asyncio
 import heapq
-import logging
-import re
 from urllib.parse import urljoin, urlparse
-
 import aiohttp
 from bs4 import BeautifulSoup
-
-logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-logger = logging.getLogger(__name__)
 
 # Default headers so we don't get blocked by basic bot detection
 _DEFAULT_HEADERS = {
@@ -43,40 +37,6 @@ _DEFAULT_HEADERS = {
         "Chrome/120.0.0.0 Safari/537.36"
     )
 }
-
-# Default keywords related to career services and resume resources
-DEFAULT_KEYWORDS = [
-    "career",
-    "resume",
-    "cv",
-    "cover-letter",
-    "cover_letter",
-    "coverletter",
-    "job",
-    "employment",
-    "hire",
-    "hiring",
-    "intern",
-    "internship",
-    "professional-development",
-    "career-services",
-    "career-center",
-    "career_services",
-    "career_center",
-    "handshake",
-    "template",
-]
-
-# URL path segments to skip — these sections never lead to career pages
-_EXCLUDED_PATHS = re.compile(
-    r"/(athletics|sports|news/\d{4}|events/\d{4}|calendar/\d{4}"
-    r"|library/catalog|catalog/course|directory/people"
-    r"|image|photo|gallery|video|podcast|media/\d"
-    r"|login|sso|oauth|cas/|webmail"
-    r"|\.pdf$|\.docx?$|\.xlsx?$|\.pptx?$|\.zip$|\.png$|\.jpe?g$|\.gif$|\.svg$"
-    r"|\.css$|\.js$|\.xml$|\.json$|\.rss$)",
-    re.IGNORECASE,
-)
 
 
 def _url_matches_keywords(url: str, anchor_text: str, keywords: list[str]) -> bool:
@@ -89,20 +49,15 @@ def _url_matches_keywords(url: str, anchor_text: str, keywords: list[str]) -> bo
 def _priority_score(url: str, keywords: list[str]) -> int:
     """
     Lower score = higher priority.
-    URLs containing keywords are crawled first.
+    URLs containing keywords are crawled first when keywords are provided.
     """
+    if not keywords:
+        return 0
     path = urlparse(url).path.lower()
     if any(kw in path for kw in keywords):
         return 0  # highest priority — likely relevant
-    if any(seg in path for seg in ("/student", "/service", "/resource", "/office")):
-        return 1  # medium — might lead to career pages
-    return 2  # lowest — generic page
+    return 1  # standard priority
 
-
-def _should_skip(url: str) -> bool:
-    """Return True if the URL path matches an excluded pattern."""
-    path = urlparse(url).path
-    return bool(_EXCLUDED_PATHS.search(path))
 
 
 def _extract_links(
@@ -125,10 +80,6 @@ def _extract_links(
 
         absolute = urljoin(base_url, href).split("#")[0]
         if not absolute or not absolute.startswith("http"):
-            continue
-
-        # Skip file downloads, login pages, athletics archives, etc.
-        if _should_skip(absolute):
             continue
 
         followable.add(absolute)
@@ -157,8 +108,7 @@ async def _fetch(
             if "text/html" not in content_type:
                 return None
             return await resp.text(errors="replace")
-    except Exception as e:
-        logger.debug("Failed to fetch %s: %s", url, e)
+    except Exception:
         return None
 
 
@@ -169,7 +119,7 @@ async def _crawl_async(
     concurrency: int = 10,
     timeout: int = 10,
     max_pages: int = 200,
-    keywords: list[str] | None = DEFAULT_KEYWORDS,
+    keywords: list[str] | None = None,
 ) -> set[str]:
     """Core async crawler. See `crawl()` for parameter docs."""
     start_domain = urlparse(start_url).netloc.lower()
@@ -185,15 +135,10 @@ async def _crawl_async(
     sem = asyncio.Semaphore(concurrency)
 
     kw_list = keywords or []
-    if keywords is not None:
-        logger.info("Filtering results with keywords: %s", keywords)
 
     async with aiohttp.ClientSession(headers=_DEFAULT_HEADERS) as session:
         while pq:
             if len(visited) >= max_pages:
-                logger.warning(
-                    "Reached max pages cap (%d). Stopping crawl early.", max_pages
-                )
                 break
 
             # Grab a batch of URLs up to the concurrency limit
@@ -215,7 +160,6 @@ async def _crawl_async(
                     if keywords is None or _url_matches_keywords(url, "", kw_list):
                         matched.add(url)
 
-                    logger.info("Depth %d | Crawling: %s", depth, url)
                     html = await _fetch(session, url, timeout)
                     if html is None:
                         return
@@ -247,13 +191,6 @@ async def _crawl_async(
 
             await asyncio.gather(*(process(u, d) for u, d in batch))
 
-    logger.info(
-        "Crawl complete. Visited %d pages, found %d matching URLs "
-        "(out of %d total discovered).",
-        len(visited),
-        len(matched),
-        len(all_discovered),
-    )
     return matched
 
 
@@ -264,14 +201,15 @@ def crawl(
     concurrency: int = 10,
     timeout: int = 10,
     max_pages: int = 200,
-    keywords: list[str] | None = DEFAULT_KEYWORDS,
+    keywords: list[str] | None = None,
 ) -> set[str]:
     """
-    Crawl a website and return URLs matching the keyword filter.
+    Crawl a website and return discovered URLs.
 
-    Explores the entire same-domain site tree concurrently, but only
-    returns URLs whose path or anchor text contains a keyword.
-    Uses a priority queue so career-relevant URLs are explored first.
+    Explores the same-domain site tree concurrently. If keywords are provided,
+    only returns URLs whose path or anchor text contains at least one keyword,
+    prioritizing them in the crawl. If keywords is None (default), returns all
+    discovered URLs.
 
     Args:
         start_url:    The URL to start crawling from.
@@ -280,12 +218,11 @@ def crawl(
         concurrency:  Max number of simultaneous HTTP requests.
         timeout:      Request timeout in seconds per page.
         max_pages:    Safety cap — stop after visiting this many pages.
-        keywords:     Keywords to filter results. Only URLs whose path or
-                      anchor text matches are returned. Set to None to
-                      return everything. Defaults to career/resume keywords.
+        keywords:     Optional list of keywords to filter results.
+                      If None (default), returns all discovered URLs.
 
     Returns:
-        A set of URLs matching the keywords.
+        A set of discovered URLs.
     """
     # Handle running inside an existing event loop (e.g. Jupyter)
     try:
@@ -321,7 +258,7 @@ def crawl_batch(
     concurrency_per_site: int = 10,
     timeout: int = 10,
     max_pages: int = 200,
-    keywords: list[str] | None = DEFAULT_KEYWORDS,
+    keywords: list[str] | None = None,
 ) -> dict[str, set[str]]:
     """
     Crawl multiple websites and return results keyed by start URL.
@@ -341,15 +278,13 @@ def crawl_batch(
         Dict mapping each start_url to its set of matched URLs.
     """
     results = {}
-    for i, url in enumerate(urls):
-        logger.info("=== Crawling site %d/%d: %s ===", i + 1, len(urls), url)
+    for url in urls:
         try:
             results[url] = crawl(
                 url, max_depth, True, concurrency_per_site,
                 timeout, max_pages, keywords,
             )
-        except Exception as e:
-            logger.error("Failed to crawl %s: %s", url, e)
+        except Exception:
             results[url] = set()
     return results
 
