@@ -91,20 +91,30 @@ def get_devpost_project(url: str, timeout: int = 10) -> dict[str, Any]:
 
     # 3. Built With (Technologies)
     built_with: list[str] = []
-    built_with_header = soup.find(lambda t: t.name in ["h5", "h4", "h3"] and "built with" in t.text.lower())
-    if built_with_header:
-        ul_tag = built_with_header.find_next(["ul", "ol"])
-        if ul_tag:
-            for li in ul_tag.find_all("li"):
-                text = li.get_text(strip=True)
-                if text:
-                    built_with.append(text)
-    # Fallback to .cp-tag or .facet elements
+    # 1. Devpost tags linking to built-with
+    for a in soup.select('a[href*="/software/built-with/"], a[href*="built-with"]'):
+        t = a.get_text(strip=True)
+        if t and t not in built_with and len(t) < 40:
+            built_with.append(t)
+
+    # 2. Section header search
     if not built_with:
-        for tag in soup.select("span.cp-tag"):
+        built_with_header = soup.find(lambda t: t.name in ["h5", "h4", "h3", "h2"] and "built with" in t.text.lower())
+        if built_with_header:
+            ul_tag = built_with_header.find_next(["ul", "ol", "div"])
+            if ul_tag:
+                for item in ul_tag.find_all(["li", "span", "a"]):
+                    t = item.get_text(strip=True)
+                    if t and t not in built_with and len(t) < 40:
+                        built_with.append(t)
+
+    # 3. Fallback to .cp-tag, .built-with, #built-with
+    if not built_with:
+        for tag in soup.select(".cp-tag, .built-with li, #built-with li, .stack-tag, span.tag"):
             t = tag.get_text(strip=True)
-            if t and t not in built_with:
+            if t and t not in built_with and len(t) < 40:
                 built_with.append(t)
+
     result["built_with"] = built_with
 
     # 4. Links (GitHub & Live Demo)
@@ -113,7 +123,7 @@ def get_devpost_project(url: str, timeout: int = 10) -> dict[str, Any]:
         text = a.get_text(strip=True).lower()
         if "github.com" in href and not result["github_url"]:
             # Filter out devpost's own github links if any
-            if "/software" not in href:
+            if "/software" not in href and "devpost" not in href:
                 result["github_url"] = href
         elif any(k in text for k in ["try it out", "live demo", "website", "app"]):
             if not result["demo_url"] and not href.startswith("#"):
@@ -153,9 +163,23 @@ def get_devpost_project(url: str, timeout: int = 10) -> dict[str, Any]:
     result["hackathons"] = hackathons
 
     # 8. Full Description
-    details_div = soup.find("div", id="app-details-left") or soup.find(id="app-details")
+    details_div = (
+        soup.select_one("#app-details-left")
+        or soup.select_one("#app-details")
+        or soup.select_one(".app-details")
+        or soup.select_one(".software-presentation-content")
+        or soup.select_one("#gallery-item-details")
+        or soup.select_one("article.software-entry")
+        or soup.select_one("article")
+    )
     if details_div:
         result["description"] = details_div.get_text(separator="\n", strip=True)
+    else:
+        # Fallback to gathering all content sections
+        sections = soup.select("section, div.content-section, [data-role='software-description']")
+        texts = [s.get_text(separator="\n", strip=True) for s in sections if len(s.get_text(strip=True)) > 50]
+        if texts:
+            result["description"] = "\n\n".join(texts)
 
     return result
 

@@ -85,56 +85,8 @@ class LLMRepoSynthesis(BaseModel):
 
 
 def _clean_context_narrative(context: str, repo_name: str) -> str:
-    """
-    Remove residual document-level commentary (e.g. 'The document describes...',
-    'The README details...') and fix awkward transitions so the narrative
-    flows naturally as a factual description of the project.
-    """
-    clean = context.strip()
-
-    # 1. Transform "The document describes a <tool> called 'takeback'. It's built..." -> "takeback is a <tool> built..."
-    clean = re.sub(
-        r"(?i)^(the\s+document|the\s+readme|the\s+paper)\s+describes\s+(an?|the)\s+([^.]*?)\s+called\s+['\"]?"
-        + re.escape(repo_name)
-        + r"['\"]?\.?\s*(it's|it\s+is)?\s*",
-        f"{repo_name} is a \\3 ",
-        clean,
-    )
-
-    # 2. Transform general "The document describes/presents <project> as ..."
-    clean = re.sub(
-        r"(?i)^(the\s+document|the\s+readme|the\s+paper)\s+(describes|presents|introduces)\s+['\"]?"
-        + re.escape(repo_name)
-        + r"['\"]?\s+(as\s+)?",
-        f"{repo_name} is ",
-        clean,
-    )
-
-    # 3. Remove meta-commentary sentences about the document or repository organization
-    meta_patterns = [
-        r"(?i)\b(the\s+(document|readme|paper)\s+(also\s+)?(details|covers|describes|outlines|provides|explains|includes)\b.*?\.\s*)",
-        r"(?i)\b(the\s+repository\s+structure\s+is\s+also\s+described\b.*?\.\s*)",
-        r"(?i)\b(it\s+details\s+the\s+application\'?s\s+architecture\b.*?\.\s*)",
-        r"(?i)\b(the\s+document\s+also\s+provides\s+detailed\s+instructions\b.*?\.\s*)",
-        r"(?i)^(the\s+(document|readme|paper))\s+(details|covers|outlines|presents|explains|discusses|provides|contains)\b.*?\.\s*",
-    ]
-
-    for pat in meta_patterns:
-        clean = re.sub(pat, "", clean).strip()
-
-    # 4. Clean grammatical glitches like "that It's built" or double verbs
-    clean = re.sub(r"(?i)\bthat\s+(it's|it\s+is)\s+(built|designed|developed)?\s*", "built ", clean)
-    clean = re.sub(r"(?i)\b(built\s+)+built\b", "built", clean)
-
-    # 5. Fix repetitive "that The application allows" -> "that allows"
-    clean = re.sub(
-        r"(?i)^" + re.escape(repo_name) + r" is a (.*?) that (the\s+application|the\s+system|the\s+platform|it)\s+(allows|enables|provides)\s+",
-        f"{repo_name} is a \\1 that \\3 ",
-        clean,
-    )
-
-    clean = re.sub(r"\s{2,}", " ", clean).strip()
-    return clean
+    """Clean whitespace while preserving the model's full natural phrasing."""
+    return re.sub(r"\s{2,}", " ", context).strip()
 
 
 def _parse_github_url(url: str) -> tuple[str, str]:
@@ -534,6 +486,12 @@ TECHNICAL SPECIFICATION & OVERVIEW:
     raw_context = synthesis.context if hasattr(synthesis, "context") else str(synthesis)
     cleaned_context = _clean_context_narrative(raw_context, repo_name)
 
+    repo_url = repo_meta.get("url") or repo_meta.get("html_url") or ""
+    links = [repo_url] if repo_url else []
+    homepage = repo_meta.get("homepage")
+    if homepage and homepage not in links:
+        links.append(homepage)
+
     # Combine ground-truth metadata with the LLM's skills and deep technical context
     return Experience(
         label=repo_name,
@@ -541,6 +499,7 @@ TECHNICAL SPECIFICATION & OVERVIEW:
         start_date=repo_meta.get("start_date", ""),
         end_date=repo_meta.get("end_date", ""),
         location="Remote",
+        links=links,
         skills=synthesis.skills if hasattr(synthesis, "skills") else [],
         context=cleaned_context,
     )
