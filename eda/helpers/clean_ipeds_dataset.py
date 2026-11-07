@@ -334,13 +334,7 @@ def create_subpaths_table(
             except Exception:
                 found_urls = set()
 
-            if not found_urls:
-                records.append({
-                    "university_name": name,
-                    "subpaths": "/",
-                    "relevant": False,
-                })
-            else:
+            if found_urls:
                 for u in found_urls:
                     records.append({
                         "university_name": name,
