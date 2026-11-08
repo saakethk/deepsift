@@ -23,6 +23,82 @@ except ImportError:
         from url_crawler import crawl
 
 
+# Regex patterns for identifying relevant career / resume subpaths vs noise
+_RELEVANT_MEDIA_EXT_RE = re.compile(
+    r"\.(?:jpe?g|png|gif|svg|webp|ico|mp3|mp4|wav|avi|css|js|json|xml|zip|tar|gz)(?:\?.*)?$",
+    re.IGNORECASE,
+)
+
+_RELEVANT_NOISE_RE = re.compile(
+    r"(?:classes|courses|instruction|operations|school|activities|competition|session|league|play|fall|spring|winter|summer)[-_ ]resumes?"
+    r"|resumenes[-_ ]para"
+    r"|/faculty/cv/"
+    r"|/facstaff/.*cv"
+    r"|/faculty/.*\.pdf"
+    r"|human[-_ ]resources/careers"
+    r"|/hr/careers"
+    r"|careers[-_ ]at[-_ ]"
+    r"|working[-_ ]at[-_ ]"
+    r"|employment[-_ ]at[-_ ]"
+    r"|jobs?[-_ ]at[-_ ]"
+    r"|faculty[-_ ]openings"
+    r"|staff[-_ ]openings"
+    r"|job[-_ ]openings"
+    r"|salary[-_ ]grades"
+    r"|/athletics/"
+    r"|/sports/"
+    r"|news/.*(?:career|resume)"
+    r"|inside[-_ ][a-z0-9_-]+/news/"
+    r"|press[-_ ]release"
+    r"|/blog/\d{4}/",
+    re.IGNORECASE,
+)
+
+_RELEVANT_TARGET_RE = re.compile(
+    # 1. Direct Resume / CV / Cover Letter / VMock / Big Interview
+    r"(?:^|[/._ -])(?:resumes?|curriculum[-_ ]vitae|cover[-_ ]letters?|coverletters?|vmock)(?:[/._ -]|$|\.(?:pdf|html|php|aspx?|docx?))"
+    # 2. Career Center & Services Hubs
+    r"|career[-_ ](?:services|center|development|readiness|resources|advising|counseling|planning|hub|prep|coaching|guidance|closet|exploration|pathways|success)"
+    r"|careercenter|careerservices|careerdevelopment|careerreadiness|careerhub"
+    # 3. Job Search, Interview Prep, Handshake
+    r"|job[-_ ]search|jobsearch|interview[-_ ]prep|mock[-_ ]interview|interviewing[-_ ]tips|dress[-_ ]to[-_ ]impress"
+    r"|big[-_ ]interview|standout|handshake/(?:students|resources|jobs|events)"
+    # 4. Career Fairs & Student Internship Guides
+    r"|career[-_ ]fair|careerfair|internship[-_ ](?:guide|resources|program|prep|handbook|opportunities)",
+    re.IGNORECASE,
+)
+
+
+def is_relevant_subpath(subpath: str | None) -> bool:
+    """
+    Determine whether a crawled subpath is relevant to career services,
+    resume tips/templates, cover letters, and job search prep.
+    """
+    if not subpath or pd.isna(subpath):
+        return False
+    path = str(subpath).strip()
+    if _RELEVANT_MEDIA_EXT_RE.search(path):
+        return False
+    if _RELEVANT_NOISE_RE.search(path):
+        return False
+    return bool(_RELEVANT_TARGET_RE.search(path))
+
+
+def classify_relevant_subpaths(
+    df: pd.DataFrame,
+    subpath_col: str = "subpaths",
+    target_col: str = "relevant",
+    inplace: bool = False,
+) -> pd.DataFrame:
+    """
+    Apply relevance rules to a DataFrame of subpaths, updating the target column with boolean flags.
+    """
+    res = df if inplace else df.copy()
+    if subpath_col in res.columns:
+        res[target_col] = res[subpath_col].apply(is_relevant_subpath)
+    return res
+
+
 def _clean_root_url(raw: str | None) -> str:
     """Normalize a raw web address into a canonical root URL (e.g. 'https://www.harvard.edu')."""
     if pd.isna(raw):
