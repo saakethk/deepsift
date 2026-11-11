@@ -4,6 +4,6 @@ What constitutes an 'effective' resume remains largely subjective and governed b
 ## Methodology
 To perform this analysis, we first wanted to identify the largest relevant subreddits related to our topic of resumes. Utilizing the [PRAW](https://praw.readthedocs.io/en/stable/), we pulled the top 100 subreddits for the search term "resume". This snapshot of results can be seen in [data](data/subs_df_snapshot_11_11_2026.csv).
 
-47% of the subreddits contained the relevant search term "resume" (ignoring case). This cohort was then analyzed further
+47% of the subreddits contained the relevant search term "resume" (ignoring case). This cohort was then refined further to include communities of a significant size (above median subscriber count of **1091**).
 
 
