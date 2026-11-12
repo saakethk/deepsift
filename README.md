@@ -6,9 +6,9 @@ To perform this analysis, we first wanted to identify the largest relevant subre
 
 47% of the subreddits contained the relevant search term "resume" (ignoring case). This cohort was then refined further to include communities of a significant size (median subscriber count >= **1091**). The cohort of relevant subreddits (n=23) we decided to investigate can be seen below:
 
-[![Alt text](data/graph_relevant_subreddits_fig_11_11_26.png)](data/relevant_subs_cohort_11_11_2026.csv)
+[![Graph of subscribers per relevant subreddit](data/graph_relevant_subreddits_fig_11_11_26.png)](data/relevant_subs_cohort_11_11_2026.csv)
 
-
+We then got **10,183** posts in the largest subreddit (r/resumes) dating back to May 14, 2026. This was confined to a small time window due to this being a very active subreddit. We then performed preliminary exploratory data analysis (EDA) on this cohort to determine which posts we need to focus on going forward for the purpose of our study.
 
 
 
