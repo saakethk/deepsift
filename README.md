@@ -10,5 +10,11 @@ We found that 47% of the subreddits contained the relevant search term "resume" 
 
 We then got **10,183** posts in the largest relevant subreddit (r/resumes) dating back to May 14, 2026. This was our preliminary cohort consisting of 180 days of data ([code](explore_relevant_posts.ipynb), [data](data/prelim_historical_10000_11_11_26.csv)) which we intended to perform preliminary exploratory data analysis (EDA) on to determine which posts we need to focus on for our larger planned cohort consisting of 5 years of data (1825 days).
 
-Upon exploring the data we realized there are many posts that ask for feedback or advice regarding their resume. We decided to focus on these posts to determine what makes an effective resume. Essentially, we wanted to map the associated relevant comments associated with a post with the picture of their resume to create a grounded system for providing resume recommendations.
+We determined that the ideal cohort for our use case needed to satisfy the following factors:
+- have >10 comments and >0 score
+- have a associated url corresponding to a picture (.png or jpeg)
+
+After evaluating the preliminary cohort of data against these standards, we found that **115** of the posts satisfied the conditions ([code](explore_relevant_posts.ipynb), [data](data/subs_df_snapshot_11_11_2026.csv)). We took these 115 and analyzed them further to determine if their comments provided relevant feedback.
+
+
 
