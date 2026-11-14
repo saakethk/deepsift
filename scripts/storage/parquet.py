@@ -68,7 +68,3 @@ class ParquetStorage(Storage):
             if self.writer is not None:
                 self.writer.close()
                 self.writer = None
-
-
-# Backward-compatible alias
-ParquetStreamer = ParquetStorage

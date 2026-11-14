@@ -23,7 +23,7 @@ from tqdm.asyncio import tqdm as async_tqdm
 from scripts.models import Post, Comment
 from scripts.filters import Filters
 from scripts.sources import Source, ArcticShiftSource
-from scripts.storage import Storage, ParquetStorage, ParquetStreamer
+from scripts.storage import Storage, ParquetStorage
 
 
 def to_utc_datetime(val: Union[datetime, str, int, float, None]) -> Optional[datetime]:
