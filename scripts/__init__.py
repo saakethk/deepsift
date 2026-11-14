@@ -11,7 +11,12 @@ from scripts.models import (
     UnretrievedFieldError,
 )
 from scripts.filters import Filters, resume_cohort_post_filter
-from scripts.sources import Source, BaseSource, ArcticShiftSource, get_source, register_source
+from scripts.sources import (
+    Source,
+    ArcticShiftSource,
+    get_source,
+    register_source,
+)
 from scripts.storage import ParquetStreamer
 from scripts.scraper import RedditScraper
 
@@ -25,7 +30,6 @@ __all__ = [
     "Filters",
     "resume_cohort_post_filter",
     "Source",
-    "BaseSource",
     "ArcticShiftSource",
     "get_source",
     "register_source",

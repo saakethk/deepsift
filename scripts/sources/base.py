@@ -73,6 +73,3 @@ class Source(ABC):
                 _, comments, _ = await self.fetch_comments_for_post(client, post_id, fields=fields)
                 return comments
         return asyncio.run(_run())
-
-
-BaseSource = Source

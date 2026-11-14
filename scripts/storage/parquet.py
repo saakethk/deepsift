@@ -1,7 +1,9 @@
 """
 Parquet streaming writer using PyArrow.
+Thread-safe direct-to-disk chunked writer.
 """
 import json
+import threading
 import pyarrow as pa
 import pyarrow.parquet as pq
 
@@ -9,6 +11,7 @@ import pyarrow.parquet as pq
 class ParquetStreamer:
     """
     Direct-to-disk streaming writer for Parquet format.
+    Thread-safe across parallel shard workers.
     Handles dynamic column schemas across batches by serializing complex nested values.
     """
 
@@ -17,6 +20,7 @@ class ParquetStreamer:
         self.writer = None
         self.schema = None
         self.records_written = 0
+        self._lock = threading.Lock()
 
     def __enter__(self):
         return self
@@ -39,14 +43,16 @@ class ParquetStreamer:
             cleaned_batch.append(clean_row)
 
         table = pa.Table.from_pylist(cleaned_batch, schema=self.schema)
-        if self.writer is None:
-            self.schema = table.schema
-            self.writer = pq.ParquetWriter(self.filepath, self.schema, compression="snappy")
+        with self._lock:
+            if self.writer is None:
+                self.schema = table.schema
+                self.writer = pq.ParquetWriter(self.filepath, self.schema, compression="snappy")
 
-        self.writer.write_table(table)
-        self.records_written += len(batch)
+            self.writer.write_table(table)
+            self.records_written += len(batch)
 
     def close(self):
-        if self.writer is not None:
-            self.writer.close()
-            self.writer = None
+        with self._lock:
+            if self.writer is not None:
+                self.writer.close()
+                self.writer = None

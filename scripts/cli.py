@@ -104,7 +104,8 @@ def run(
 @click.option("--exclude-fields", "-e", multiple=True, help="Unimportant post fields to drop.")
 @click.option("--output", "-o", default="data/curated_posts.parquet", help="Parquet output destination.")
 @click.option("--post-workers", default=4, type=int, help="Parallel shard post workers.")
-def posts(subreddits, subreddits_file, from_dt, to_dt, shard_days, include_fields, exclude_fields, output, post_workers):
+@click.option("--source", default="arctic_shift", type=click.Choice(["arctic_shift"]), help="Data source provider.")
+def posts(subreddits, subreddits_file, from_dt, to_dt, shard_days, include_fields, exclude_fields, output, post_workers, source):
     """Scrape and filter Reddit posts between --from and --to dates."""
     target_subs = load_subreddits_from_file(subreddits_file) if subreddits_file else list(subreddits)
     filters = Filters(
@@ -112,7 +113,12 @@ def posts(subreddits, subreddits_file, from_dt, to_dt, shard_days, include_field
         post_include_fields=list(include_fields) if include_fields else None,
         post_exclude_fields=list(exclude_fields) if exclude_fields else None,
     )
-    scraper = RedditScraper(filters=filters, post_workers=post_workers, shard_days=shard_days)
+    scraper = RedditScraper(
+        filters=filters,
+        source=get_source(source),
+        post_workers=post_workers,
+        shard_days=shard_days,
+    )
     matched = scraper.scrape_posts(
         subreddits=target_subs,
         from_dt=from_dt,
@@ -128,14 +134,19 @@ def posts(subreddits, subreddits_file, from_dt, to_dt, shard_days, include_field
 @click.option("--exclude-fields", "-e", multiple=True, help="Unimportant comment fields to drop.")
 @click.option("--output", "-o", default="data/curated_comments.parquet", help="Parquet output destination.")
 @click.option("--workers", "-w", default=5, type=int, help="Async concurrency limit.")
-def comments(post_ids, include_fields, exclude_fields, output, workers):
+@click.option("--source", default="arctic_shift", type=click.Choice(["arctic_shift"]), help="Data source provider.")
+def comments(post_ids, include_fields, exclude_fields, output, workers, source):
     """Scrape comment trees for given post IDs."""
     filters = Filters(
         comment_filter=None,
         comment_include_fields=list(include_fields) if include_fields else None,
         comment_exclude_fields=list(exclude_fields) if exclude_fields else None,
     )
-    scraper = RedditScraper(filters=filters, comment_workers=workers)
+    scraper = RedditScraper(
+        filters=filters,
+        source=get_source(source),
+        comment_workers=workers,
+    )
     count = scraper.scrape_comments(post_ids=list(post_ids), output_path=output)
     click.secho(f"[✓] Comments complete. Saved {count:,} comments to {output}", fg="green")
 
