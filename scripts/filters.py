@@ -42,11 +42,11 @@ class Filters:
             self.comment_exclude_fields = CommentField.validate_many(comment_exclude_fields)
             self.additional_filter_fields = PostField.validate_many(additional_filter_fields)
         else:
-            self.post_include_fields = {str(f) for f in post_include_fields} if post_include_fields else None
-            self.comment_include_fields = {str(f) for f in comment_include_fields} if comment_include_fields else None
-            self.post_exclude_fields = {str(f) for f in post_exclude_fields} if post_exclude_fields else None
-            self.comment_exclude_fields = {str(f) for f in comment_exclude_fields} if comment_exclude_fields else None
-            self.additional_filter_fields = {str(f) for f in additional_filter_fields} if additional_filter_fields else None
+            self.post_include_fields = {str(f).lower().strip() for f in post_include_fields} if post_include_fields else None
+            self.comment_include_fields = {str(f).lower().strip() for f in comment_include_fields} if comment_include_fields else None
+            self.post_exclude_fields = {str(f).lower().strip() for f in post_exclude_fields} if post_exclude_fields else None
+            self.comment_exclude_fields = {str(f).lower().strip() for f in comment_exclude_fields} if comment_exclude_fields else None
+            self.additional_filter_fields = {str(f).lower().strip() for f in additional_filter_fields} if additional_filter_fields else None
 
         # Always strictly reject exclusion of required schema fields
         self._validate_required(self.post_exclude_fields, Post.REQUIRED_FIELDS, "post_exclude_fields")

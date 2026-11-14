@@ -56,6 +56,13 @@ class RedditScraper:
         comment_workers: int = 5,
         shard_days: int = 180,
     ):
+        if post_workers <= 0:
+            raise ValueError(f"post_workers must be positive integer >= 1, got {post_workers}")
+        if comment_workers <= 0:
+            raise ValueError(f"comment_workers must be positive integer >= 1, got {comment_workers}")
+        if shard_days <= 0:
+            raise ValueError(f"shard_days must be positive integer >= 1, got {shard_days}")
+
         self.filters = filters or Filters()
         self.source = source or ArcticShiftSource()
         self.storage_cls = storage_cls
@@ -144,18 +151,23 @@ class RedditScraper:
                 for batch in self.source.fetch_posts_shard(subreddit, after_ts, before_ts, fields=self.filters.required_post_fields, session=session):
                     rows = []
                     for raw in batch:
-                        if int(raw.get("created_utc", 0)) < after_ts:
-                            reached_end = True
-                            break
-                        post = Post(raw)
-                        if "subreddit" not in post._data and subreddit:
-                            post._data["subreddit"] = subreddit
-                        if post.id not in seen and self.filters.is_valid_post(post):
-                            with lock:
-                                if post.id not in seen:
-                                    seen.add(post.id)
-                                    rows.append(post.to_dict())
-                                    matched.append(post.id)
+                        try:
+                            if not isinstance(raw, dict):
+                                continue
+                            if int(raw.get("created_utc", 0)) < after_ts:
+                                reached_end = True
+                                break
+                            post = Post(raw)
+                            if "subreddit" not in post._data and subreddit:
+                                post._data["subreddit"] = subreddit
+                            if post.id not in seen and self.filters.is_valid_post(post):
+                                with lock:
+                                    if post.id not in seen:
+                                        seen.add(post.id)
+                                        rows.append(post.to_dict())
+                                        matched.append(post.id)
+                        except Exception:
+                            continue
                     if rows:
                         with lock:
                             streamer.write_batch(rows)
@@ -310,7 +322,7 @@ class RedditScraper:
         errors_output: str = "data/errors.json",
         _in_pipeline: bool = False,
     ) -> int:
-        pids = [post_ids] if isinstance(post_ids, str) else list(post_ids)
+        pids = [post_ids] if isinstance(post_ids, str) else list(dict.fromkeys(post_ids))
         if not pids:
             return 0
         try:

@@ -50,13 +50,18 @@ class RedditEntity:
         key_str = key.value if isinstance(key, FieldEnum) else str(key)
         if key_str in self._data:
             return self._data[key_str]
-        return getattr(self, key_str)
+        try:
+            return getattr(self, key_str)
+        except AttributeError as e:
+            if isinstance(e, KeyError):
+                raise
+            raise KeyError(str(e)) from e
 
     def get(self, key: Union[str, FieldEnum], default: Any = None) -> Any:
         try:
             val = self[key]
             return default if val is None else val
-        except (AttributeError, UnretrievedFieldError):
+        except (AttributeError, KeyError):
             return default
 
     def __contains__(self, key: Union[str, FieldEnum]) -> bool:

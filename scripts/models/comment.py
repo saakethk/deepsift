@@ -26,7 +26,7 @@ class Comment(RedditEntity):
     @property
     def is_top_level(self) -> bool:
         """Helper to check if comment is a direct reply to the post (starts with t3_)."""
-        parent = str(self.parent_id or "")
+        parent = str(self.get("parent_id") or "")
         return parent.startswith("t3_")
 
     def __repr__(self) -> str:

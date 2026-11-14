@@ -79,15 +79,21 @@ class ArcticShiftSource(Source):
                         if res.status_code == 200:
                             data = res.json().get("data", [])
                             break
-                        time.sleep(backoff)
+                        if res.status_code == 429:
+                            retry_after = float(res.headers.get("Retry-After", backoff))
+                            time.sleep(min(retry_after, 30.0))
+                        else:
+                            time.sleep(backoff)
                         backoff *= 1.8
                     except requests.RequestException:
                         time.sleep(backoff)
                         backoff *= 1.8
 
                 if data is None:
-                    current_before -= 86400  # Step back 1 day on persistent network timeout
-                    continue
+                    raise ConnectionError(
+                        f"Failed to fetch posts shard for r/{subreddit} in window [{after_ts}, {current_before}] "
+                        f"after 5 retries (timeout or server error)."
+                    )
 
                 if not data:
                     break

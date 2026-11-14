@@ -82,10 +82,21 @@ class Source(ABC):
     def fetch_comments(self, post_id: str, fields: Optional[Iterable[str]] = None) -> List[Dict[str, Any]]:
         """
         Synchronously fetches comments for a single post using a transient httpx client.
+        Safely supports execution inside active event loops (such as Jupyter notebooks).
         """
         import asyncio
         async def _run():
             async with httpx.AsyncClient() as client:
                 _, comments, _ = await self.fetch_comments_for_post(client, post_id, fields=fields)
                 return comments
+
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop and loop.is_running():
+            import nest_asyncio
+            nest_asyncio.apply()
+            return loop.run_until_complete(_run())
         return asyncio.run(_run())
