@@ -6,9 +6,12 @@ Accepts custom filter functions:
 Calculates the exact server projection fields needed, so the server never transmits
 unwanted/excluded fields over the wire.
 Validates column restrictions against PostField and CommentField enumerations.
+Inspects filter function parameter types and accessed fields to raise errors upfront
+if filters attempt to access unretrieved or excluded fields.
 """
-from typing import Callable, Optional, Iterable, Union, Set
-from scripts.models import Post, Comment, PostField, CommentField
+import dis
+from typing import Callable, Optional, Iterable, Union, Set, get_type_hints
+from scripts.models import Post, Comment, PostField, CommentField, RedditEntity, UnretrievedFieldError
 
 
 def resume_cohort_post_filter(post: Post) -> bool:
@@ -16,20 +19,76 @@ def resume_cohort_post_filter(post: Post) -> bool:
     return post.score > 0 and post.num_comments > 10 and post.has_image
 
 
-def default_comment_filter(comment: Comment) -> bool:
-    """Standard comment filter: excludes AutoModerator and blank bodies."""
-    return not comment.is_automod and bool(comment.body.strip())
+def inspect_filter(func: Optional[Callable], expected_cls: type) -> Set[str]:
+    """
+    Inspects a filter function's parameter types and bytecode.
+    Validates that the parameter type matches expected_cls (Post or Comment).
+    Extracts all entity fields accessed by the function.
+    """
+    if func is None or not callable(func):
+        return set()
+
+    # Validate type hints if provided
+    try:
+        hints = get_type_hints(func)
+    except Exception:
+        hints = getattr(func, "__annotations__", {})
+
+    for param_name, annotated_type in hints.items():
+        if param_name != "return":
+            if isinstance(annotated_type, type) and issubclass(annotated_type, RedditEntity):
+                if annotated_type != expected_cls:
+                    raise TypeError(
+                        f"Filter parameter '{param_name}' is typed as {annotated_type.__name__}, "
+                        f"but expected {expected_cls.__name__}."
+                    )
+
+    if not hasattr(func, "__code__"):
+        return set()
+
+    first_arg = func.__code__.co_varnames[0] if func.__code__.co_argcount > 0 else None
+    if not first_arg:
+        return set()
+
+    accessed = set()
+    instructions = list(dis.get_instructions(func))
+    for i, inst in enumerate(instructions):
+        if inst.opname == "LOAD_FAST" and inst.argval == first_arg:
+            if i + 1 < len(instructions):
+                next1 = instructions[i + 1]
+                if next1.opname in ("LOAD_ATTR", "LOAD_METHOD") and next1.argval not in ("get",):
+                    accessed.add(next1.argval)
+                elif next1.opname in ("LOAD_ATTR", "LOAD_METHOD") and next1.argval == "get":
+                    if i + 2 < len(instructions) and instructions[i + 2].opname == "LOAD_CONST":
+                        if isinstance(instructions[i + 2].argval, str):
+                            accessed.add(instructions[i + 2].argval)
+                elif next1.opname == "LOAD_CONST" and i + 2 < len(instructions) and instructions[i + 2].opname == "BINARY_SUBSCR":
+                    if isinstance(next1.argval, str):
+                        accessed.add(next1.argval)
+
+    # Resolve properties to underlying API fields
+    resolved = set()
+    for attr in accessed:
+        if attr.startswith("_"):
+            continue
+        if attr == "has_image":
+            resolved.add("url")
+        elif attr == "is_top_level":
+            resolved.add("parent_id")
+        else:
+            resolved.add(attr)
+    return resolved
 
 
 class Filters:
     """
     Generalized filter container.
     Users can define:
-    1. Row logic: custom post_filter and comment_filter functions taking typed Post / Comment objects.
-    2. Column selection: what is important (include_fields) vs unimportant (exclude_fields),
-       validated strictly against PostField and CommentField enumerations.
-    3. Server Projection: automatically calculates the minimal set of fields to request from the API,
-       preventing excluded/unimportant fields from ever being transmitted from the server.
+    Row logic: custom post_filter and comment_filter functions taking typed Post / Comment objects.
+    Column selection: what is important (include_fields) vs unimportant (exclude_fields),
+    validated strictly against PostField and CommentField enumerations.
+    Server Projection: automatically calculates the minimal set of fields to request from the API,
+    preventing excluded/unimportant fields from ever being transmitted from the server.
     """
 
     def __init__(
@@ -49,12 +108,47 @@ class Filters:
         self.post_filter = post_filter or (lambda post: True)
         self.comment_filter = comment_filter or (lambda comment: True)
 
+        self._post_filter_fields = inspect_filter(self.post_filter, Post)
+        self._comment_filter_fields = inspect_filter(self.comment_filter, Comment)
+
         if validate:
             self.post_include_fields = PostField.validate_many(post_include_fields)
             self.comment_include_fields = CommentField.validate_many(comment_include_fields)
             self.post_exclude_fields = PostField.validate_many(post_exclude_fields)
             self.comment_exclude_fields = CommentField.validate_many(comment_exclude_fields)
             self.additional_filter_fields = PostField.validate_many(additional_filter_fields)
+
+            # Validate that filter functions do not access excluded fields
+            if self.post_exclude_fields:
+                for field in self._post_filter_fields:
+                    if field in self.post_exclude_fields:
+                        raise ValueError(
+                            f"Field '{field}' cannot be excluded in post_exclude_fields because post_filter requires it."
+                        )
+
+            if self.comment_exclude_fields:
+                for field in self._comment_filter_fields:
+                    if field in self.comment_exclude_fields:
+                        raise ValueError(
+                            f"Field '{field}' cannot be excluded in comment_exclude_fields because comment_filter requires it."
+                        )
+
+            # Validate that filter functions do not access unretrieved fields
+            if self.post_include_fields is not None:
+                for field in self._post_filter_fields:
+                    if field not in self.post_include_fields:
+                        raise UnretrievedFieldError(
+                            f"post_filter accesses field '{field}', but '{field}' is not in post_include_fields "
+                            f"({sorted(list(self.post_include_fields))}). Only fields expected to be retrieved can be accessed."
+                        )
+
+            if self.comment_include_fields is not None:
+                for field in self._comment_filter_fields:
+                    if field not in self.comment_include_fields:
+                        raise UnretrievedFieldError(
+                            f"comment_filter accesses field '{field}', but '{field}' is not in comment_include_fields "
+                            f"({sorted(list(self.comment_include_fields))}). Only fields expected to be retrieved can be accessed."
+                        )
         else:
             self.post_include_fields = {str(f) for f in post_include_fields} if post_include_fields else None
             self.comment_include_fields = {str(f) for f in comment_include_fields} if comment_include_fields else None
@@ -74,8 +168,8 @@ class Filters:
         if self.post_include_fields is None and self.post_exclude_fields is None:
             return None
 
-        # Essential for shard pagination and common property evaluation (has_image, score, num_comments)
-        core_fields = {"id", "created_utc", "score", "num_comments", "url"}
+        # Core fields needed for pagination, hierarchy, and filter predicates
+        core_fields = {"id", "created_utc"} | self._post_filter_fields
 
         if self.post_include_fields is not None:
             fields = set(self.post_include_fields) | core_fields
@@ -83,7 +177,7 @@ class Filters:
                 fields -= self.post_exclude_fields
         else:
             fields = PostField.all_fields() - self.post_exclude_fields
-            fields |= {"id", "created_utc"}
+            fields |= {"id", "created_utc"} | self._post_filter_fields
 
         if self.additional_filter_fields:
             fields |= self.additional_filter_fields
@@ -95,7 +189,8 @@ class Filters:
         if self.comment_include_fields is None and self.comment_exclude_fields is None:
             return None
 
-        core_fields = {"id", "comment_id", "post_id", "parent_id", "author", "body", "score", "created_utc"}
+        # Core fields needed for pagination, hierarchy, and filter predicates
+        core_fields = {"id", "post_id", "parent_id"} | self._comment_filter_fields
 
         if self.comment_include_fields is not None:
             fields = set(self.comment_include_fields) | core_fields
@@ -103,7 +198,7 @@ class Filters:
                 fields -= self.comment_exclude_fields
         else:
             fields = CommentField.all_fields() - self.comment_exclude_fields
-            fields |= {"id", "post_id", "parent_id"}
+            fields |= {"id", "post_id", "parent_id"} | self._comment_filter_fields
 
         return fields
 

@@ -10,7 +10,7 @@ from scripts.models import (
     FieldEnum,
     UnretrievedFieldError,
 )
-from scripts.filters import Filters, resume_cohort_post_filter, default_comment_filter
+from scripts.filters import Filters, resume_cohort_post_filter
 from scripts.sources import Source, BaseSource, ArcticShiftSource
 from scripts.storage import ParquetStreamer
 from scripts.scraper import RedditScraper
@@ -24,7 +24,6 @@ __all__ = [
     "UnretrievedFieldError",
     "Filters",
     "resume_cohort_post_filter",
-    "default_comment_filter",
     "Source",
     "BaseSource",
     "ArcticShiftSource",

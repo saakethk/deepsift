@@ -7,7 +7,7 @@ import click
 import pandas as pd
 
 from scripts.models import PostField, CommentField
-from scripts.filters import Filters, resume_cohort_post_filter, default_comment_filter
+from scripts.filters import Filters, resume_cohort_post_filter
 from scripts.sources import ArcticShiftSource
 from scripts.scraper import RedditScraper
 
@@ -53,7 +53,7 @@ def run(
     try:
         filters = Filters(
             post_filter=resume_cohort_post_filter,
-            comment_filter=default_comment_filter,
+            comment_filter=None,
             post_include_fields=list(include_fields) if include_fields else None,
             post_exclude_fields=list(exclude_fields) if exclude_fields else None,
             comment_include_fields=list(comment_include_fields) if comment_include_fields else None,
@@ -131,7 +131,7 @@ def posts(subreddits, subreddits_file, from_dt, to_dt, shard_days, include_field
 def comments(post_ids, include_fields, exclude_fields, output, workers):
     """Scrape comment trees for given post IDs."""
     filters = Filters(
-        comment_filter=default_comment_filter,
+        comment_filter=None,
         comment_include_fields=list(include_fields) if include_fields else None,
         comment_exclude_fields=list(exclude_fields) if exclude_fields else None,
     )
@@ -142,13 +142,15 @@ def comments(post_ids, include_fields, exclude_fields, output, workers):
 
 @cli.command()
 def fields():
-    """List all valid PostField and CommentField enumerations."""
+    """List all valid PostField and CommentField enumerations with descriptions."""
     click.echo(f"\nVALID POST FIELDS ({len(PostField)}):")
-    for f in sorted([p.value for p in PostField]):
-        click.echo(f"  • {f}")
+    for p in sorted(list(PostField), key=lambda x: x.value):
+        desc = f" — {p.description}" if p.description else ""
+        click.echo(f"  • {p.value:<30}{desc}")
     click.echo(f"\nVALID COMMENT FIELDS ({len(CommentField)}):")
-    for f in sorted([c.value for c in CommentField]):
-        click.echo(f"  • {f}")
+    for c in sorted(list(CommentField), key=lambda x: x.value):
+        desc = f" — {c.description}" if c.description else ""
+        click.echo(f"  • {c.value:<30}{desc}")
 
 
 if __name__ == "__main__":

@@ -10,22 +10,6 @@ class UnretrievedFieldError(KeyError):
     pass
 
 
-def filter_dict_fields(
-    data: Dict[str, Any],
-    include: Optional[Iterable[Union[str, FieldEnum]]] = None,
-    exclude: Optional[Iterable[Union[str, FieldEnum]]] = None,
-) -> Dict[str, Any]:
-    """Filters a dictionary based on whitelisted (include) or blacklisted (exclude) keys."""
-    res = dict(data)
-    if include:
-        include_set = {str(k) for k in include}
-        res = {k: v for k, v in res.items() if k in include_set}
-    if exclude:
-        exclude_set = {str(k) for k in exclude}
-        res = {k: v for k, v in res.items() if k not in exclude_set}
-    return res
-
-
 class RedditEntity:
     """
     Base data container for Reddit API entities.
@@ -36,13 +20,9 @@ class RedditEntity:
     def __init__(self, data: Dict[str, Any]):
         self._data = dict(data)
 
-    def to_dict(
-        self,
-        include_fields: Optional[Iterable[Union[str, FieldEnum]]] = None,
-        exclude_fields: Optional[Iterable[Union[str, FieldEnum]]] = None,
-    ) -> Dict[str, Any]:
-        """Returns the dictionary filtered to only what the user deems important."""
-        return filter_dict_fields(self._data, include=include_fields, exclude=exclude_fields)
+    def to_dict(self) -> Dict[str, Any]:
+        """Returns a copy of the underlying entity dictionary."""
+        return dict(self._data)
 
     def __getattr__(self, name: str) -> Any:
         # Check if field is present in the dictionary
@@ -50,9 +30,10 @@ class RedditEntity:
             return self._data[name]
 
         # Check if the field is a valid entity field
-        if hasattr(self, "_field_enum") and not self._field_enum.has_field(name):
+        enum_cls = getattr(type(self), "_field_enum", None)
+        if enum_cls and not enum_cls.has_field(name):
             try:
-                self._field_enum.validate(name)
+                enum_cls.validate(name)
             except ValueError as e:
                 raise AttributeError(f"'{type(self).__name__}' has no field '{name}'. {e}") from None
 
