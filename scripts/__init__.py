@@ -10,7 +10,7 @@ from scripts.models import (
     FieldEnum,
     UnretrievedFieldError,
 )
-from scripts.filters import Filters
+from scripts.filters import Filters, RequiredFieldError
 from scripts.sources import (
     Source,
     ArcticShiftSource,
@@ -27,6 +27,7 @@ __all__ = [
     "Post",
     "Comment",
     "UnretrievedFieldError",
+    "RequiredFieldError",
     "Filters",
     "Source",
     "ArcticShiftSource",

@@ -173,25 +173,44 @@ class ArcticShiftSource(Source):
     async def _fetch_search_fallback(
         self, client: httpx.AsyncClient, clean_id: str, fields: Optional[Iterable[str]] = None
     ) -> List[Dict[str, Any]]:
-        """Fallback to /api/comments/search with field projection."""
-        params = {"link_id": f"t3_{clean_id}", "limit": self.batch_size}
+        """Fallback to /api/comments/search with field projection and backward pagination."""
+        all_comments = []
         projected = self.resolve_comment_fields(fields)
-        if projected:
-            params["fields"] = ",".join(sorted(projected))
+        fields_str = ",".join(sorted(projected)) if projected else None
+        current_before = None
 
-        try:
-            resp = await client.get(
-                f"{self.base_url}/api/comments/search",
-                params=params,
-                headers=self.headers,
-                timeout=self.timeout,
-            )
-            if resp.status_code == 200:
-                raw = resp.json().get("data", [])
-                for item in raw:
-                    if "post_id" not in item:
-                        item["post_id"] = clean_id
-                return raw
-        except Exception:
-            pass
-        return []
+        for _ in range(25):
+            params = {"link_id": f"t3_{clean_id}", "limit": self.batch_size}
+            if fields_str:
+                params["fields"] = fields_str
+            if current_before is not None:
+                params["before"] = current_before
+
+            try:
+                resp = await client.get(
+                    f"{self.base_url}/api/comments/search",
+                    params=params,
+                    headers=self.headers,
+                    timeout=self.timeout,
+                )
+                if resp.status_code == 200:
+                    raw = resp.json().get("data", [])
+                    if not raw:
+                        break
+                    for item in raw:
+                        if "post_id" not in item:
+                            item["post_id"] = clean_id
+                    all_comments.extend(raw)
+                    if len(raw) < self.batch_size:
+                        break
+                    oldest_ts = raw[-1].get("created_utc")
+                    if oldest_ts and (current_before is None or oldest_ts < current_before):
+                        current_before = oldest_ts
+                    else:
+                        break
+                else:
+                    break
+            except Exception:
+                break
+
+        return all_comments

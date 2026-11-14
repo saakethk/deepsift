@@ -60,6 +60,11 @@ class ParquetStorage(Storage):
                 self.writer = pq.ParquetWriter(self.filepath, self.schema, compression="snappy")
                 table = initial_table.cast(self.schema) if initial_table.schema != self.schema else initial_table
             else:
+                string_cols = {f.name for f in self.schema if pa.types.is_string(f.type)}
+                for row in cleaned_batch:
+                    for col in string_cols:
+                        if col in row and row[col] is not None and not isinstance(row[col], str):
+                            row[col] = str(row[col])
                 table = pa.Table.from_pylist(cleaned_batch, schema=self.schema)
 
             self.writer.write_table(table)

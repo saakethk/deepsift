@@ -66,7 +66,7 @@ class RedditScraper:
         while cur > start:
             prev = max(cur - timedelta(days=self.shard_days), start)
             shards.append((int(prev.timestamp()), int(cur.timestamp())))
-            cur = prev - timedelta(seconds=1)
+            cur = prev
         return shards, start, end
 
     def _scan_shard(self, subreddit: str, after_ts: int, before_ts: int, streamer: Storage, seen: set, lock: threading.Lock) -> list[str]:
@@ -76,10 +76,12 @@ class RedditScraper:
             for batch in self.source.fetch_posts_shard(subreddit, after_ts, before_ts, fields=self.filters.required_post_fields, session=session):
                 rows = []
                 for raw in batch:
-                    if int(raw.get("created_utc", 0)) <= after_ts:
+                    if int(raw.get("created_utc", 0)) < after_ts:
                         reached_end = True
                         break
                     post = Post(raw)
+                    if "subreddit" not in post._data and subreddit:
+                        post._data["subreddit"] = subreddit
                     if post.id not in seen and self.filters.is_valid_post(post):
                         with lock:
                             if post.id not in seen:

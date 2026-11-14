@@ -12,7 +12,7 @@ class Post(RedditEntity):
     Dynamically supports all 105 PostField enumerations.
     """
     _field_enum = PostField
-    REQUIRED_FIELDS = frozenset({"id", "created_utc"})
+    REQUIRED_FIELDS = frozenset({"id", "created_utc", "subreddit"})
 
     @classmethod
     def from_api_dict(cls, data: Dict[str, Any]) -> "Post":

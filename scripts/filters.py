@@ -10,6 +10,11 @@ from typing import Callable, Optional, Iterable, Union, Set
 from scripts.models import Post, Comment, PostField, CommentField
 
 
+class RequiredFieldError(ValueError):
+    """Raised when attempting to exclude a fundamentally required entity field."""
+    pass
+
+
 class Filters:
     """
     Generalized filter container.
@@ -36,15 +41,16 @@ class Filters:
             self.post_exclude_fields = PostField.validate_many(post_exclude_fields)
             self.comment_exclude_fields = CommentField.validate_many(comment_exclude_fields)
             self.additional_filter_fields = PostField.validate_many(additional_filter_fields)
-
-            self._validate_required(self.post_exclude_fields, Post.REQUIRED_FIELDS, "post_exclude_fields")
-            self._validate_required(self.comment_exclude_fields, Comment.REQUIRED_FIELDS, "comment_exclude_fields")
         else:
             self.post_include_fields = {str(f) for f in post_include_fields} if post_include_fields else None
             self.comment_include_fields = {str(f) for f in comment_include_fields} if comment_include_fields else None
             self.post_exclude_fields = {str(f) for f in post_exclude_fields} if post_exclude_fields else None
             self.comment_exclude_fields = {str(f) for f in comment_exclude_fields} if comment_exclude_fields else None
             self.additional_filter_fields = {str(f) for f in additional_filter_fields} if additional_filter_fields else None
+
+        # Always strictly reject exclusion of required schema fields
+        self._validate_required(self.post_exclude_fields, Post.REQUIRED_FIELDS, "post_exclude_fields")
+        self._validate_required(self.comment_exclude_fields, Comment.REQUIRED_FIELDS, "comment_exclude_fields")
 
         self.required_post_fields = self._compute_projection(
             self.post_include_fields, self.post_exclude_fields, Post.REQUIRED_FIELDS,
@@ -60,7 +66,10 @@ class Filters:
         if exclude_fields:
             for field in required_fields:
                 if field in exclude_fields:
-                    raise ValueError(f"Required field '{field}' cannot be excluded in {param_name}.")
+                    raise RequiredFieldError(
+                        f"Required field '{field}' cannot be excluded in {param_name}. "
+                        f"Required fields: {sorted(list(required_fields))}."
+                    )
 
     @staticmethod
     def _compute_projection(
