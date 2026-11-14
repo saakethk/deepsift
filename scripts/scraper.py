@@ -72,26 +72,29 @@ class RedditScraper:
     def _scan_shard(self, subreddit: str, after_ts: int, before_ts: int, streamer: Storage, seen: set, lock: threading.Lock) -> list[str]:
         matched = []
         reached_end = False
-        with requests.Session() as session:
-            for batch in self.source.fetch_posts_shard(subreddit, after_ts, before_ts, fields=self.filters.required_post_fields, session=session):
-                rows = []
-                for raw in batch:
-                    if int(raw.get("created_utc", 0)) < after_ts:
-                        reached_end = True
+        try:
+            with requests.Session() as session:
+                for batch in self.source.fetch_posts_shard(subreddit, after_ts, before_ts, fields=self.filters.required_post_fields, session=session):
+                    rows = []
+                    for raw in batch:
+                        if int(raw.get("created_utc", 0)) < after_ts:
+                            reached_end = True
+                            break
+                        post = Post(raw)
+                        if "subreddit" not in post._data and subreddit:
+                            post._data["subreddit"] = subreddit
+                        if post.id not in seen and self.filters.is_valid_post(post):
+                            with lock:
+                                if post.id not in seen:
+                                    seen.add(post.id)
+                                    rows.append(post.to_dict())
+                                    matched.append(post.id)
+                    if rows:
+                        streamer.write_batch(rows)
+                    if reached_end:
                         break
-                    post = Post(raw)
-                    if "subreddit" not in post._data and subreddit:
-                        post._data["subreddit"] = subreddit
-                    if post.id not in seen and self.filters.is_valid_post(post):
-                        with lock:
-                            if post.id not in seen:
-                                seen.add(post.id)
-                                rows.append(post.to_dict())
-                                matched.append(post.id)
-                if rows:
-                    streamer.write_batch(rows)
-                if reached_end:
-                    break
+        except Exception as e:
+            print(f"[!] Warning: Shard [{after_ts}, {before_ts}] for r/{subreddit} encountered an error: {e}")
         return matched
 
     def scrape_posts(
@@ -130,9 +133,12 @@ class RedditScraper:
         total_saved, buffer = 0, []
 
         async def _fetch(client: httpx.AsyncClient, pid: str):
-            async with sem:
-                cid, raw, _ = await self.source.fetch_comments_for_post(client, pid, fields=self.filters.required_comment_fields)
-            return [c.to_dict() for raw_c in (raw or []) if self.filters.is_valid_comment(c := Comment(raw_c, cid))]
+            try:
+                async with sem:
+                    cid, raw, _ = await self.source.fetch_comments_for_post(client, pid, fields=self.filters.required_comment_fields)
+                return [c.to_dict() for raw_c in (raw or []) if self.filters.is_valid_comment(c := Comment(raw_c, cid))]
+            except Exception:
+                return []
 
         print(f"[*] Fetching comments using [{self.source.name}] for {len(post_ids):,} posts...")
         with (storage_cls or self.storage_cls)(output_path) as streamer:

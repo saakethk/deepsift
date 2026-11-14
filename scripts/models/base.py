@@ -5,7 +5,7 @@ from typing import Dict, Any, Optional, Iterable, Union, Type
 from scripts.models.enums import FieldEnum
 
 
-class UnretrievedFieldError(KeyError):
+class UnretrievedFieldError(AttributeError, KeyError):
     """Raised when accessing an API field that was not retrieved in the payload."""
     pass
 
@@ -25,6 +25,9 @@ class RedditEntity:
         return dict(self._data)
 
     def __getattr__(self, name: str) -> Any:
+        if name.startswith("_"):
+            raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
+
         # Check if field is present in the dictionary
         if name in self._data:
             return self._data[name]
