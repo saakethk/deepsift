@@ -51,12 +51,14 @@ class FieldEnum(str, Enum):
         raise ValueError(f"Invalid {cls.__name__} field '{val}'.{hint}")
 
     @classmethod
-    def validate_many(cls, fields: Optional[Iterable[Union[str, "FieldEnum"]]]) -> Optional[Set[str]]:
+    def validate_many(cls, fields: Optional[Union[str, "FieldEnum", Iterable[Union[str, "FieldEnum"]]]]) -> Optional[Set[str]]:
         """
-        Validates an iterable of fields. Returns a validated Set[str] or None if fields is None.
+        Validates one or more fields. Returns a validated Set[str] or None if fields is None.
         """
         if fields is None:
             return None
+        if isinstance(fields, (str, cls)):
+            fields = [fields]
         validated = set()
         for f in fields:
             validated.add(cls.validate(f))

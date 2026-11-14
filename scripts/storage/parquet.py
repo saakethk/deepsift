@@ -58,8 +58,10 @@ class ParquetStorage(Storage):
                 initial_table = pa.Table.from_pylist(cleaned_batch)
                 self.schema = self._sanitize_schema(initial_table.schema)
                 self.writer = pq.ParquetWriter(self.filepath, self.schema, compression="snappy")
+                table = initial_table.cast(self.schema) if initial_table.schema != self.schema else initial_table
+            else:
+                table = pa.Table.from_pylist(cleaned_batch, schema=self.schema)
 
-            table = pa.Table.from_pylist(cleaned_batch, schema=self.schema)
             self.writer.write_table(table)
             self.records_written += len(batch)
 
@@ -68,3 +70,5 @@ class ParquetStorage(Storage):
             if self.writer is not None:
                 self.writer.close()
                 self.writer = None
+            elif self.records_written == 0:
+                print(f"[i] Info: Parquet file '{self.filepath}' was not created due to lack of results.")

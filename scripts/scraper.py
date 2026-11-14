@@ -25,13 +25,16 @@ def to_utc_datetime(val: Union[datetime, str, int, float, None]) -> Optional[dat
         return None
     if isinstance(val, (int, float)):
         return datetime.fromtimestamp(val, tz=timezone.utc)
+    if isinstance(val, datetime):
+        return val.astimezone(timezone.utc) if val.tzinfo else val.replace(tzinfo=timezone.utc)
     if isinstance(val, str):
         v = val.strip().replace("Z", "+00:00")
         try:
             val = datetime.fromisoformat(v)
         except ValueError:
             val = datetime.strptime(v, "%Y-%m-%d")
-    return val if val.tzinfo else val.replace(tzinfo=timezone.utc)
+        return val.astimezone(timezone.utc) if val.tzinfo else val.replace(tzinfo=timezone.utc)
+    raise TypeError(f"Expected datetime, numeric timestamp, or str date, got {type(val).__name__}")
 
 
 class RedditScraper:
@@ -113,7 +116,8 @@ class RedditScraper:
                         all_matched.extend(f.result())
 
         unique_ids = list(dict.fromkeys(all_matched))
-        print(f"[✓] Saved {len(unique_ids):,} posts to {output_path}")
+        if unique_ids:
+            print(f"[✓] Saved {len(unique_ids):,} posts to {output_path}")
         return unique_ids
 
     async def _scrape_comments_async(self, post_ids: list[str], output_path: str, chunk_size: int = 500, storage_cls: Optional[Type[Storage]] = None) -> int:
@@ -144,24 +148,26 @@ class RedditScraper:
                     streamer.write_batch(buffer)
                     total_saved += len(buffer)
 
-        print(f"[✓] Saved {total_saved:,} comments to {output_path}")
+        if total_saved > 0:
+            print(f"[✓] Saved {total_saved:,} comments to {output_path}")
         return total_saved
 
     def scrape_comments(
         self,
-        post_ids: list[str],
+        post_ids: Union[str, list[str]],
         output_path: str = "data/curated_comments.parquet",
         chunk_size: int = 500,
         storage_cls: Optional[Type[Storage]] = None,
     ) -> int:
-        if not post_ids:
+        pids = [post_ids] if isinstance(post_ids, str) else list(post_ids)
+        if not pids:
             return 0
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
             loop = None
 
-        coro = self._scrape_comments_async(post_ids, output_path, chunk_size, storage_cls)
+        coro = self._scrape_comments_async(pids, output_path, chunk_size, storage_cls)
         if loop and loop.is_running():
             import nest_asyncio
             nest_asyncio.apply()

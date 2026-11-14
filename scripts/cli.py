@@ -69,13 +69,17 @@ def run(
     if filters.post_exclude_fields:
         click.echo(f"Post Fields Dropped: {sorted(list(filters.post_exclude_fields))}")
 
-    posts, comments = scraper.run(
-        subreddits=target_subs,
-        from_dt=from_dt,
-        to_dt=to_dt,
-        posts_output=posts_out,
-        comments_output=comments_out,
-    )
+    try:
+        posts, comments = scraper.run(
+            subreddits=target_subs,
+            from_dt=from_dt,
+            to_dt=to_dt,
+            posts_output=posts_out,
+            comments_output=comments_out,
+        )
+    except ValueError as e:
+        click.secho(f"\n[!] Parameter Error: {e}", fg="red", err=True)
+        sys.exit(1)
 
     elapsed = round(time.time() - start_time, 1)
     click.echo(f"[✓] Pipeline complete in {elapsed}s")
@@ -96,23 +100,27 @@ def run(
 def posts(subreddits, from_dt, to_dt, shard_days, include_fields, exclude_fields, output, post_workers, source):
     """Scrape and filter Reddit posts between --from and --to dates."""
     target_subs = list(subreddits)
-    filters = Filters(
-        post_filter=None,
-        post_include_fields=list(include_fields) if include_fields else None,
-        post_exclude_fields=list(exclude_fields) if exclude_fields else None,
-    )
-    scraper = RedditScraper(
-        filters=filters,
-        source=get_source(source),
-        post_workers=post_workers,
-        shard_days=shard_days,
-    )
-    scraper.scrape_posts(
-        subreddits=target_subs,
-        from_dt=from_dt,
-        to_dt=to_dt,
-        output_path=output,
-    )
+    try:
+        filters = Filters(
+            post_filter=None,
+            post_include_fields=list(include_fields) if include_fields else None,
+            post_exclude_fields=list(exclude_fields) if exclude_fields else None,
+        )
+        scraper = RedditScraper(
+            filters=filters,
+            source=get_source(source),
+            post_workers=post_workers,
+            shard_days=shard_days,
+        )
+        scraper.scrape_posts(
+            subreddits=target_subs,
+            from_dt=from_dt,
+            to_dt=to_dt,
+            output_path=output,
+        )
+    except ValueError as e:
+        click.secho(f"\n[!] Error: {e}", fg="red", err=True)
+        sys.exit(1)
 
 
 @cli.command()
@@ -124,17 +132,21 @@ def posts(subreddits, from_dt, to_dt, shard_days, include_fields, exclude_fields
 @click.option("--source", default="arctic_shift", type=click.Choice(["arctic_shift"]), help="Data source provider.")
 def comments(post_ids, include_fields, exclude_fields, output, workers, source):
     """Scrape comment trees for given post IDs."""
-    filters = Filters(
-        comment_filter=None,
-        comment_include_fields=list(include_fields) if include_fields else None,
-        comment_exclude_fields=list(exclude_fields) if exclude_fields else None,
-    )
-    scraper = RedditScraper(
-        filters=filters,
-        source=get_source(source),
-        comment_workers=workers,
-    )
-    scraper.scrape_comments(post_ids=list(post_ids), output_path=output)
+    try:
+        filters = Filters(
+            comment_filter=None,
+            comment_include_fields=list(include_fields) if include_fields else None,
+            comment_exclude_fields=list(exclude_fields) if exclude_fields else None,
+        )
+        scraper = RedditScraper(
+            filters=filters,
+            source=get_source(source),
+            comment_workers=workers,
+        )
+        scraper.scrape_comments(post_ids=list(post_ids), output_path=output)
+    except ValueError as e:
+        click.secho(f"\n[!] Error: {e}", fg="red", err=True)
+        sys.exit(1)
 
 
 @cli.command()
