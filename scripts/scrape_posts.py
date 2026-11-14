@@ -14,24 +14,11 @@ from datetime import datetime, timedelta, timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from tqdm import tqdm
 
-from scripts.filters import is_cohort_candidate
+from scripts.filters import is_cohort_post
+from scripts.parsers import clean_post
 from scripts.parquet_streamer import ParquetStreamer
 
 POST_FIELDS = "id,subreddit,title,selftext,url,score,num_comments,link_flair_text,created_utc"
-
-
-def clean_post(post: dict) -> dict:
-    return {
-        "id": str(post.get("id")),
-        "subreddit": str(post.get("subreddit") or "resumes"),
-        "title": str(post.get("title") or ""),
-        "selftext": str(post.get("selftext") or ""),
-        "url": str(post.get("url") or ""),
-        "score": int(post.get("score") or 0),
-        "num_comments": int(post.get("num_comments") or 0),
-        "flair": str(post.get("link_flair_text") or ""),
-        "created_utc": int(post.get("created_utc") or 0),
-    }
 
 
 def generate_anchored_shards(days_back: int, shard_days: int = 180, anchor_dt: datetime = None) -> list[tuple[int, int]]:
@@ -97,7 +84,7 @@ def scan_single_shard(
                 if post_id in seen_ids:
                     continue
 
-            if is_cohort_candidate(post):
+            if is_cohort_post(post):
                 cleaned = clean_post(post)
                 with seen_lock:
                     if post_id not in seen_ids:
