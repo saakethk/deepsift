@@ -166,3 +166,31 @@ def test_live_cli_execution():
         assert Path(posts_path).exists()
         table = pq.read_table(posts_path)
         assert len(table) > 0
+
+
+def test_live_determinism_historical_data():
+    source = ArcticShiftSource(batch_size=20)
+    after_ts = 1704150000
+    before_ts = 1704153600
+    fields = [PostField.ID, PostField.TITLE, PostField.SCORE, PostField.NUM_COMMENTS]
+
+    shards1 = list(source.fetch_posts_shard(
+        subreddit="resumes",
+        after_ts=after_ts,
+        before_ts=before_ts,
+        fields=fields,
+    ))
+    posts1 = [p for batch in shards1 for p in batch]
+
+    shards2 = list(source.fetch_posts_shard(
+        subreddit="resumes",
+        after_ts=after_ts,
+        before_ts=before_ts,
+        fields=fields,
+    ))
+    posts2 = [p for batch in shards2 for p in batch]
+
+    assert len(posts1) > 0
+    assert len(posts1) == len(posts2)
+    assert [p["id"] for p in posts1] == [p["id"] for p in posts2]
+    assert posts1 == posts2

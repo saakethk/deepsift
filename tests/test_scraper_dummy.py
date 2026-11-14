@@ -192,3 +192,61 @@ def test_empty_subreddits_raises_value_error(tmp_path):
     with pytest.raises(ValueError) as exc:
         scraper.run(subreddits=[], from_dt="2024-01-01", errors_output=errors_out)
     assert "At least one subreddit must be specified" in str(exc.value)
+
+
+def test_pipeline_determinism_multiple_runs(tmp_path):
+    import pyarrow.parquet as pq
+
+    run1_posts = str(tmp_path / "run1_posts.parquet")
+    run1_comments = str(tmp_path / "run1_comments.parquet")
+    run2_posts = str(tmp_path / "run2_posts.parquet")
+    run2_comments = str(tmp_path / "run2_comments.parquet")
+
+    filters = Filters(
+        post_filter=lambda p: p.score >= 10,
+        comment_filter=lambda c: len(c.body) > 5,
+        post_include_fields=["id", "title", "score", "author", "created_utc"],
+        comment_include_fields=["id", "post_id", "parent_id", "body", "score"],
+    )
+
+    scraper1 = RedditScraper(
+        filters=filters,
+        source=DummySource(seed=12345, posts_per_shard=25, comments_per_post=4),
+        shard_days=15,
+        post_workers=2,
+        comment_workers=2,
+    )
+    posts1, comments_count1 = scraper1.run(
+        subreddits=["resumes"],
+        from_dt="2024-01-01",
+        to_dt="2024-02-15",
+        posts_output=run1_posts,
+        comments_output=run1_comments,
+    )
+
+    scraper2 = RedditScraper(
+        filters=filters,
+        source=DummySource(seed=12345, posts_per_shard=25, comments_per_post=4),
+        shard_days=15,
+        post_workers=2,
+        comment_workers=2,
+    )
+    posts2, comments_count2 = scraper2.run(
+        subreddits=["resumes"],
+        from_dt="2024-01-01",
+        to_dt="2024-02-15",
+        posts_output=run2_posts,
+        comments_output=run2_comments,
+    )
+
+    assert set(posts1) == set(posts2)
+    assert len(posts1) == len(posts2)
+    assert comments_count1 == comments_count2
+
+    table1_posts = sorted(pq.read_table(run1_posts).to_pylist(), key=lambda r: r["id"])
+    table2_posts = sorted(pq.read_table(run2_posts).to_pylist(), key=lambda r: r["id"])
+    assert table1_posts == table2_posts
+
+    table1_comments = sorted(pq.read_table(run1_comments).to_pylist(), key=lambda r: r["id"])
+    table2_comments = sorted(pq.read_table(run2_comments).to_pylist(), key=lambda r: r["id"])
+    assert table1_comments == table2_comments
