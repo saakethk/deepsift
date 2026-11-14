@@ -6,7 +6,7 @@ import os
 import json
 import asyncio
 import threading
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, date, timedelta, timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Union, Optional, Tuple, Type
 import requests
@@ -14,13 +14,13 @@ import httpx
 from tqdm import tqdm
 from tqdm.asyncio import tqdm as async_tqdm
 
-from scripts.models import Post, Comment
+from scripts.models import Post, Comment, UnretrievedFieldError
 from scripts.filters import Filters
 from scripts.sources import Source, ArcticShiftSource
 from scripts.storage import Storage, ParquetStorage
 
 
-def to_utc_datetime(val: Union[datetime, str, int, float, None]) -> Optional[datetime]:
+def to_utc_datetime(val: Union[datetime, date, str, int, float, None]) -> Optional[datetime]:
     """Normalizes input to timezone-aware UTC datetime."""
     if val is None:
         return None
@@ -28,8 +28,10 @@ def to_utc_datetime(val: Union[datetime, str, int, float, None]) -> Optional[dat
         return datetime.fromtimestamp(val, tz=timezone.utc)
     if isinstance(val, datetime):
         return val.astimezone(timezone.utc) if val.tzinfo else val.replace(tzinfo=timezone.utc)
+    if isinstance(val, date):
+        return datetime(val.year, val.month, val.day, tzinfo=timezone.utc)
     if isinstance(val, str):
-        v = val.strip()
+        v = val.strip().strip("'\"")
         try:
             num = float(v)
             return datetime.fromtimestamp(num, tz=timezone.utc)
@@ -41,7 +43,7 @@ def to_utc_datetime(val: Union[datetime, str, int, float, None]) -> Optional[dat
         except ValueError:
             val = datetime.strptime(v, "%Y-%m-%d")
         return val.astimezone(timezone.utc) if val.tzinfo else val.replace(tzinfo=timezone.utc)
-    raise TypeError(f"Expected datetime, numeric timestamp, or str date, got {type(val).__name__}")
+    raise TypeError(f"Expected datetime, date, numeric timestamp, or str date, got {type(val).__name__}")
 
 
 class RedditScraper:
@@ -78,14 +80,14 @@ class RedditScraper:
         self.completed_at: Optional[datetime] = None
 
     def save_errors_log(
-        self, errors_path: str = "data/errors.json", fatal_error: Optional[Exception] = None
+        self, errors_path: str = "data/errors.json", fatal_error: Optional[BaseException] = None
     ) -> Optional[str]:
         """Saves a structured JSON log of all failed requests, successes, and timestamps."""
         if fatal_error:
             fatal_entry = {
                 "stage": "fatal_pipeline_error",
                 "error_type": type(fatal_error).__name__,
-                "error_message": str(fatal_error),
+                "error_message": str(fatal_error) or "Execution interrupted by user or system signal",
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }
             with self._errors_lock:
@@ -154,7 +156,7 @@ class RedditScraper:
                         try:
                             if not isinstance(raw, dict):
                                 continue
-                            if int(raw.get("created_utc", 0)) < after_ts:
+                            if int(float(raw.get("created_utc", 0))) < after_ts:
                                 reached_end = True
                                 break
                             post = Post(raw)
@@ -166,6 +168,8 @@ class RedditScraper:
                                         seen.add(post.id)
                                         rows.append(post.to_dict())
                                         matched.append(post.id)
+                        except UnretrievedFieldError:
+                            raise
                         except Exception:
                             continue
                     if rows:
@@ -220,17 +224,20 @@ class RedditScraper:
             print(f"[*] Post scan using [{self.source.name}] across {len(subs)} subreddits ({start_dt:%Y-%m-%d} to {end_dt:%Y-%m-%d})")
             with (storage_cls or self.storage_cls)(output_path) as streamer:
                 for sub in subs:
-                    with ThreadPoolExecutor(max_workers=self.post_workers) as executor:
+                    executor = ThreadPoolExecutor(max_workers=self.post_workers)
+                    try:
                         futures = [executor.submit(self._scan_shard, sub, a, b, streamer, seen, lock) for a, b in shards]
                         for f in tqdm(as_completed(futures), total=len(futures), desc=f"r/{sub}"):
                             all_matched.extend(f.result())
+                    finally:
+                        executor.shutdown(wait=False, cancel_futures=True)
 
             unique_ids = list(dict.fromkeys(all_matched))
             self.succeeded_posts = unique_ids
             if unique_ids:
                 print(f"[✓] Saved {len(unique_ids):,} posts to {output_path}")
             return unique_ids
-        except Exception as e:
+        except BaseException as e:
             fatal_exc = e
             raise
         finally:
@@ -286,26 +293,27 @@ class RedditScraper:
 
         try:
             print(f"[*] Fetching comments using [{self.source.name}] for {len(post_ids):,} posts...")
+            max_conn = max(self.comment_workers * 2, 20)
             with (storage_cls or self.storage_cls)(output_path) as streamer:
-                async with httpx.AsyncClient(limits=httpx.Limits(max_keepalive_connections=20, max_connections=20)) as client:
+                async with httpx.AsyncClient(limits=httpx.Limits(max_keepalive_connections=max_conn, max_connections=max_conn)) as client:
                     tasks = [_fetch(client, pid) for pid in post_ids]
                     for fut in async_tqdm.as_completed(tasks, total=len(tasks), desc="Comments"):
                         comments = await fut
                         if comments:
                             buffer.extend(comments)
                         if len(buffer) >= chunk_size:
-                            streamer.write_batch(buffer)
+                            await asyncio.to_thread(streamer.write_batch, list(buffer))
                             total_saved += len(buffer)
                             buffer.clear()
                     if buffer:
-                        streamer.write_batch(buffer)
+                        await asyncio.to_thread(streamer.write_batch, list(buffer))
                         total_saved += len(buffer)
 
             self.succeeded_comments += total_saved
             if total_saved > 0:
                 print(f"[✓] Saved {total_saved:,} comments to {output_path}")
             return total_saved
-        except Exception as e:
+        except BaseException as e:
             fatal_exc = e
             raise
         finally:
@@ -377,7 +385,7 @@ class RedditScraper:
                     _in_pipeline=True,
                 )
             return posts, comments
-        except Exception as e:
+        except BaseException as e:
             fatal_exc = e
             raise
         finally:

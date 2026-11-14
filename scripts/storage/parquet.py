@@ -49,7 +49,7 @@ class ParquetStorage(Storage):
             clean_row = {}
             for k, v in row.items():
                 if isinstance(v, (dict, list)):
-                    clean_row[k] = json.dumps(v)
+                    clean_row[k] = json.dumps(v, default=str)
                 else:
                     clean_row[k] = v
             cleaned_batch.append(clean_row)

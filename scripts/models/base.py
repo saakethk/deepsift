@@ -24,6 +24,10 @@ class RedditEntity:
         """Returns a copy of the underlying entity dictionary."""
         return dict(self._data)
 
+    def __repr__(self) -> str:
+        eid = self._data.get("id", "")
+        return f"<{type(self).__name__} id={eid!r}>" if eid else f"<{type(self).__name__}>"
+
     def __getattr__(self, name: str) -> Any:
         if name.startswith("_"):
             raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
@@ -67,6 +71,24 @@ class RedditEntity:
     def __contains__(self, key: Union[str, FieldEnum]) -> bool:
         key_str = key.value if isinstance(key, FieldEnum) else str(key)
         return key_str in self._data
+
+    def __len__(self) -> int:
+        return len(self._data)
+
+    def __iter__(self):
+        return iter(self._data)
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, type(self)):
+            return False
+        if "id" in self._data and "id" in other._data:
+            return self._data["id"] == other._data["id"]
+        return self._data == other._data
+
+    def __hash__(self) -> int:
+        if "id" in self._data:
+            return hash((type(self), self._data["id"]))
+        return id(self)
 
     def keys(self):
         return self._data.keys()

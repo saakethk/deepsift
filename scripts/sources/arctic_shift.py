@@ -143,6 +143,9 @@ class ArcticShiftSource(Source):
                         cleaned = await self._fetch_search_fallback(client, clean_id, fields=fields)
                     return clean_id, cleaned, True
 
+                if resp.status_code == 404:
+                    break
+
                 await asyncio.sleep(backoff)
                 backoff *= 1.6
             except Exception:
@@ -213,40 +216,46 @@ class ArcticShiftSource(Source):
             if current_before is not None:
                 params["before"] = current_before
 
-            try:
-                resp = await client.get(
-                    f"{self.base_url}/api/comments/search",
-                    params=params,
-                    headers=self.headers,
-                    timeout=self.timeout,
-                )
-                if resp.status_code == 200:
-                    raw = resp.json().get("data", [])
-                    if not raw:
+            raw = None
+            for attempt in range(2):
+                try:
+                    resp = await client.get(
+                        f"{self.base_url}/api/comments/search",
+                        params=params,
+                        headers=self.headers,
+                        timeout=self.timeout,
+                    )
+                    if resp.status_code == 200:
+                        raw = resp.json().get("data", [])
                         break
-                    for item in raw:
-                        cid = str(item.get("id", ""))
-                        if cid and cid in seen_ids:
-                            continue
-                        if cid:
-                            seen_ids.add(cid)
-                        if "post_id" not in item:
-                            item["post_id"] = clean_id
-                        all_comments.append(item)
-                    if len(raw) < self.batch_size:
-                        break
-                    oldest_ts = raw[-1].get("created_utc")
-                    if oldest_ts is not None:
-                        try:
-                            oldest_int = int(oldest_ts)
-                            current_before = oldest_int - 1 if (current_before is not None and oldest_int >= current_before) else oldest_int
-                        except (ValueError, TypeError):
-                            break
-                    else:
-                        break
-                else:
+                    if resp.status_code == 429:
+                        await asyncio.sleep(1.0)
+                except Exception:
+                    if attempt == 0:
+                        await asyncio.sleep(0.5)
+
+            if not raw:
+                break
+
+            for item in raw:
+                cid = str(item.get("id", ""))
+                if cid and cid in seen_ids:
+                    continue
+                if cid:
+                    seen_ids.add(cid)
+                if "post_id" not in item:
+                    item["post_id"] = clean_id
+                all_comments.append(item)
+            if len(raw) < self.batch_size:
+                break
+            oldest_ts = raw[-1].get("created_utc")
+            if oldest_ts is not None:
+                try:
+                    oldest_int = int(oldest_ts)
+                    current_before = oldest_int - 1 if (current_before is not None and oldest_int >= current_before) else oldest_int
+                except (ValueError, TypeError):
                     break
-            except Exception:
+            else:
                 break
 
         return all_comments
