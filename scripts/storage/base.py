@@ -20,6 +20,7 @@ class Storage(ABC):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        """Guarantees stream cleanup and footer serialization on context block exit, even if errors occur."""
         self.close()
 
     @abstractmethod

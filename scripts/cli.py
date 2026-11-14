@@ -4,21 +4,11 @@ Command line interface for the Reddit Research Scraper.
 import sys
 import time
 import click
-import pandas as pd
 
 from scripts.models import PostField, CommentField
 from scripts.filters import Filters, resume_cohort_post_filter
 from scripts.sources import ArcticShiftSource, get_source
 from scripts.scraper import RedditScraper
-
-
-def load_subreddits_from_file(csv_path: str) -> list[str]:
-    """Extracts subreddit names from a CSV file."""
-    df = pd.read_csv(csv_path)
-    for col in ["subreddit_name", "subreddit", "name"]:
-        if col in df.columns:
-            return df[col].dropna().astype(str).tolist()
-    return df.iloc[:, 0].dropna().astype(str).tolist()
 
 
 @click.group()
@@ -29,7 +19,6 @@ def cli():
 
 @cli.command()
 @click.option("--subreddits", "-s", multiple=True, default=["resumes"], help="Subreddit(s) to scan.")
-@click.option("--subreddits-file", "-f", default=None, help="Path to CSV containing subreddit names.")
 @click.option("--from", "from_dt", required=True, help="Start date/datetime (YYYY-MM-DD or ISO).")
 @click.option("--to", "to_dt", default=None, help="End date/datetime (YYYY-MM-DD or ISO, defaults to today).")
 @click.option("--shard-days", default=180, type=int, help="Shard window size in days.")
@@ -43,12 +32,12 @@ def cli():
 @click.option("--comment-workers", default=5, type=int, help="Async comment concurrency workers.")
 @click.option("--source", default="arctic_shift", type=click.Choice(["arctic_shift"]), help="Data source provider.")
 def run(
-    subreddits, subreddits_file, from_dt, to_dt, shard_days,
+    subreddits, from_dt, to_dt, shard_days,
     include_fields, exclude_fields, comment_include_fields, comment_exclude_fields,
     posts_out, comments_out, post_workers, comment_workers, source
 ):
     """Run full pipeline: scrape posts, filter cohort, and extract comment trees."""
-    target_subs = load_subreddits_from_file(subreddits_file) if subreddits_file else list(subreddits)
+    target_subs = list(subreddits)
 
     try:
         filters = Filters(
@@ -96,7 +85,6 @@ def run(
 
 @cli.command()
 @click.option("--subreddits", "-s", multiple=True, default=["resumes"], help="Subreddit(s) to scan.")
-@click.option("--subreddits-file", "-f", default=None, help="Path to CSV containing subreddit names.")
 @click.option("--from", "from_dt", required=True, help="Start date/datetime (YYYY-MM-DD or ISO).")
 @click.option("--to", "to_dt", default=None, help="End date/datetime (YYYY-MM-DD or ISO, defaults to today).")
 @click.option("--shard-days", default=180, type=int, help="Shard window size in days.")
@@ -105,9 +93,9 @@ def run(
 @click.option("--output", "-o", default="data/curated_posts.parquet", help="Parquet output destination.")
 @click.option("--post-workers", default=4, type=int, help="Parallel shard post workers.")
 @click.option("--source", default="arctic_shift", type=click.Choice(["arctic_shift"]), help="Data source provider.")
-def posts(subreddits, subreddits_file, from_dt, to_dt, shard_days, include_fields, exclude_fields, output, post_workers, source):
+def posts(subreddits, from_dt, to_dt, shard_days, include_fields, exclude_fields, output, post_workers, source):
     """Scrape and filter Reddit posts between --from and --to dates."""
-    target_subs = load_subreddits_from_file(subreddits_file) if subreddits_file else list(subreddits)
+    target_subs = list(subreddits)
     filters = Filters(
         post_filter=resume_cohort_post_filter,
         post_include_fields=list(include_fields) if include_fields else None,
