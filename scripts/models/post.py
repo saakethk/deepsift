@@ -14,6 +14,11 @@ class Post(RedditEntity):
     _field_enum = PostField
     REQUIRED_FIELDS = frozenset({"id", "created_utc", "subreddit"})
 
+    def __init__(self, data: Dict[str, Any]):
+        super().__init__(data)
+        if "id" in self._data and isinstance(self._data["id"], str):
+            self._data["id"] = self._data["id"].replace("t3_", "")
+
     @classmethod
     def from_api_dict(cls, data: Dict[str, Any]) -> "Post":
         return cls(data)

@@ -207,6 +207,8 @@ class RedditScraper:
         _in_pipeline: bool = False,
     ) -> list[str]:
         subs = [subreddits] if isinstance(subreddits, str) else list(subreddits)
+        if not subs:
+            raise ValueError("At least one subreddit must be specified.")
         if not _in_pipeline:
             self.started_at = datetime.now(timezone.utc)
             self.targeted_subreddits = subs
@@ -279,6 +281,8 @@ class RedditScraper:
                     with self._errors_lock:
                         self.errors.append(error_entry)
                 return [c.to_dict() for raw_c in (raw or []) if self.filters.is_valid_comment(c := Comment(raw_c, cid))]
+            except UnretrievedFieldError:
+                raise
             except Exception as e:
                 error_entry = {
                     "stage": "comment_fetch",

@@ -21,6 +21,11 @@ dependencies = [
     "nest-asyncio>=1.6.0",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+]
+
 [project.scripts]
 reddit-scraper = "scripts.cli:cli"
 

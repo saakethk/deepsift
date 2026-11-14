@@ -16,7 +16,11 @@ class Comment(RedditEntity):
 
     def __init__(self, data: Dict[str, Any], post_id: str = ""):
         super().__init__(data)
-        if post_id and "post_id" not in self._data:
+        if "id" in self._data and isinstance(self._data["id"], str):
+            self._data["id"] = self._data["id"].replace("t1_", "")
+        if "post_id" in self._data and isinstance(self._data["post_id"], str):
+            self._data["post_id"] = self._data["post_id"].replace("t3_", "")
+        elif post_id:
             self._data["post_id"] = str(post_id).replace("t3_", "")
 
     @classmethod

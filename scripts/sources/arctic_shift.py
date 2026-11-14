@@ -100,7 +100,7 @@ class ArcticShiftSource(Source):
 
                 yield data
 
-                oldest = int(data[-1].get("created_utc", 0))
+                oldest = min(int(float(p.get("created_utc", current_before))) for p in data)
                 if oldest <= after_ts:
                     break
                 current_before = current_before - 1 if oldest >= current_before else oldest
@@ -140,7 +140,7 @@ class ArcticShiftSource(Source):
                         raw = json_data["comments"]
                     cleaned = self._unpack_nodes(raw if raw is not None else json_data, clean_id)
                     if not cleaned and raw is None:
-                        cleaned = await self._fetch_search_fallback(client, clean_id, fields=fields)
+                        cleaned, _ = await self._fetch_search_fallback(client, clean_id, fields=fields)
                     return clean_id, cleaned, True
 
                 if resp.status_code == 404:
@@ -152,8 +152,8 @@ class ArcticShiftSource(Source):
                 await asyncio.sleep(backoff)
                 backoff *= 1.6
 
-        fallback = await self._fetch_search_fallback(client, clean_id, fields=fields)
-        return clean_id, fallback, bool(fallback)
+        fallback, success = await self._fetch_search_fallback(client, clean_id, fields=fields)
+        return clean_id, fallback, success
 
     def _unpack_nodes(self, nodes: Any, post_id: str) -> List[Dict[str, Any]]:
         """
@@ -200,7 +200,7 @@ class ArcticShiftSource(Source):
 
     async def _fetch_search_fallback(
         self, client: httpx.AsyncClient, clean_id: str, fields: Optional[Iterable[str]] = None
-    ) -> List[Dict[str, Any]]:
+    ) -> Tuple[List[Dict[str, Any]], bool]:
         """Fallback to /api/comments/search with field projection and backward pagination."""
         all_comments = []
         seen_ids = set()
@@ -208,6 +208,7 @@ class ArcticShiftSource(Source):
         query_fields = (set(projected) | {"id", "created_utc"}) if projected else None
         fields_str = ",".join(sorted(query_fields)) if query_fields else None
         current_before = None
+        ever_succeeded = False
 
         for _ in range(25):
             params = {"link_id": f"t3_{clean_id}", "limit": self.batch_size}
@@ -227,6 +228,7 @@ class ArcticShiftSource(Source):
                     )
                     if resp.status_code == 200:
                         raw = resp.json().get("data", [])
+                        ever_succeeded = True
                         break
                     if resp.status_code == 429:
                         await asyncio.sleep(1.0)
@@ -234,7 +236,7 @@ class ArcticShiftSource(Source):
                     if attempt == 0:
                         await asyncio.sleep(0.5)
 
-            if not raw:
+            if raw is None or not raw:
                 break
 
             for item in raw:
@@ -251,11 +253,11 @@ class ArcticShiftSource(Source):
             oldest_ts = raw[-1].get("created_utc")
             if oldest_ts is not None:
                 try:
-                    oldest_int = int(oldest_ts)
+                    oldest_int = int(float(oldest_ts))
                     current_before = oldest_int - 1 if (current_before is not None and oldest_int >= current_before) else oldest_int
                 except (ValueError, TypeError):
                     break
             else:
                 break
 
-        return all_comments
+        return all_comments, ever_succeeded

@@ -23,6 +23,7 @@ class ParquetStorage(Storage):
         super().__init__(filepath)
         self.writer = None
         self.schema = None
+        self._closed = False
         self._lock = threading.Lock()
 
         dir_path = os.path.dirname(os.path.abspath(filepath))
@@ -41,6 +42,8 @@ class ParquetStorage(Storage):
         return pa.schema(fields)
 
     def write_batch(self, batch: List[Dict[str, Any]]):
+        if self._closed:
+            raise RuntimeError(f"Cannot write to closed ParquetStorage '{self.filepath}'")
         if not batch:
             return
 
@@ -72,6 +75,7 @@ class ParquetStorage(Storage):
 
     def close(self):
         with self._lock:
+            self._closed = True
             if self.writer is not None:
                 self.writer.close()
                 self.writer = None
