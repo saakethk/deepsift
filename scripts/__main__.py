@@ -1,8 +1,8 @@
 """
 Executable package entrypoint for running:
-    python -m scripts [options]
+    python -m scripts [command] [options]
 """
-from scripts.pipeline import run_pipeline
+from scripts.cli import cli
 
 if __name__ == "__main__":
-    run_pipeline()
+    cli()

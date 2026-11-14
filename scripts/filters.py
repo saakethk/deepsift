@@ -8,8 +8,7 @@ unwanted/excluded fields over the wire.
 Validates column restrictions against PostField and CommentField enumerations.
 """
 from typing import Callable, Optional, Iterable, Union, Set
-from scripts.enums import PostField, CommentField
-from scripts.models import Post, Comment
+from scripts.models import Post, Comment, PostField, CommentField
 
 
 def resume_cohort_post_filter(post: Post) -> bool:
