@@ -6,7 +6,7 @@ import time
 import click
 
 from scripts.models import PostField, CommentField
-from scripts.filters import Filters, resume_cohort_post_filter
+from scripts.filters import Filters
 from scripts.sources import ArcticShiftSource, get_source
 from scripts.scraper import RedditScraper
 
