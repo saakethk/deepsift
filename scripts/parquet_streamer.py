@@ -18,21 +18,16 @@ class ParquetStreamer:
         os.makedirs(os.path.dirname(filepath) or ".", exist_ok=True)
 
     def write_batch(self, records: list[dict]):
-        """Writes a batch of records as a row group to the Parquet file."""
         if not records:
             return
-
         with self._lock:
             table = pa.Table.from_pylist(records, schema=self.schema)
             if self.writer is None:
                 self.schema = table.schema
-                self.writer = pq.ParquetWriter(
-                    self.filepath, self.schema, compression=self.compression
-                )
+                self.writer = pq.ParquetWriter(self.filepath, self.schema, compression=self.compression)
             self.writer.write_table(table)
 
     def close(self):
-        """Closes the Parquet writer if open."""
         with self._lock:
             if self.writer is not None:
                 self.writer.close()
@@ -41,8 +36,5 @@ class ParquetStreamer:
     def __enter__(self):
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, *args):
         self.close()
-
-# Alias for backwards compatibility
-ParquetStreamWriter = ParquetStreamer
