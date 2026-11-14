@@ -2,7 +2,7 @@
 Abstract base class definition for Reddit data sources.
 """
 from abc import ABC, abstractmethod
-from typing import Iterator, List, Dict, Any, Optional, Tuple, Iterable
+from typing import Iterator, List, Dict, Any, Optional, Tuple, Iterable, Set
 import requests
 import httpx
 
@@ -12,6 +12,22 @@ class Source(ABC):
     Abstract Base Class for Reddit data sources.
     Handles communication with specific APIs, archives, or data stores.
     """
+
+    @staticmethod
+    def resolve_post_fields(fields: Optional[Iterable[str]]) -> Optional[Set[str]]:
+        """Ensures required post fields (id, created_utc) are present in any projection."""
+        if fields is None:
+            return None
+        from scripts.models import Post
+        return set(fields) | set(Post.REQUIRED_FIELDS)
+
+    @staticmethod
+    def resolve_comment_fields(fields: Optional[Iterable[str]]) -> Optional[Set[str]]:
+        """Ensures required comment fields (id, post_id, parent_id) are present in any projection."""
+        if fields is None:
+            return None
+        from scripts.models import Comment
+        return set(fields) | set(Comment.REQUIRED_FIELDS)
 
     @property
     @abstractmethod

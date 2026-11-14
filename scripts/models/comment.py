@@ -12,6 +12,7 @@ class Comment(RedditEntity):
     Dynamically supports all CommentField enumerations.
     """
     _field_enum = CommentField
+    REQUIRED_FIELDS = frozenset({"id", "post_id", "parent_id"})
 
     def __init__(self, data: Dict[str, Any], post_id: str = ""):
         super().__init__(data)

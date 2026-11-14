@@ -118,6 +118,21 @@ class Filters:
             self.comment_exclude_fields = CommentField.validate_many(comment_exclude_fields)
             self.additional_filter_fields = PostField.validate_many(additional_filter_fields)
 
+            # Validate that fundamentally required fields are not excluded
+            if self.post_exclude_fields:
+                for req_field in Post.REQUIRED_FIELDS:
+                    if req_field in self.post_exclude_fields:
+                        raise ValueError(
+                            f"Required field '{req_field}' cannot be excluded in post_exclude_fields."
+                        )
+
+            if self.comment_exclude_fields:
+                for req_field in Comment.REQUIRED_FIELDS:
+                    if req_field in self.comment_exclude_fields:
+                        raise ValueError(
+                            f"Required field '{req_field}' cannot be excluded in comment_exclude_fields."
+                        )
+
             # Validate that filter functions do not access excluded fields
             if self.post_exclude_fields:
                 for field in self._post_filter_fields:
@@ -169,15 +184,15 @@ class Filters:
             return None
 
         # Core fields needed for pagination, hierarchy, and filter predicates
-        core_fields = {"id", "created_utc"} | self._post_filter_fields
+        core_fields = set(Post.REQUIRED_FIELDS) | self._post_filter_fields
 
         if self.post_include_fields is not None:
             fields = set(self.post_include_fields) | core_fields
             if self.post_exclude_fields:
-                fields -= self.post_exclude_fields
+                fields -= (self.post_exclude_fields - set(Post.REQUIRED_FIELDS))
         else:
             fields = PostField.all_fields() - self.post_exclude_fields
-            fields |= {"id", "created_utc"} | self._post_filter_fields
+            fields |= core_fields
 
         if self.additional_filter_fields:
             fields |= self.additional_filter_fields
@@ -190,15 +205,15 @@ class Filters:
             return None
 
         # Core fields needed for pagination, hierarchy, and filter predicates
-        core_fields = {"id", "post_id", "parent_id"} | self._comment_filter_fields
+        core_fields = set(Comment.REQUIRED_FIELDS) | self._comment_filter_fields
 
         if self.comment_include_fields is not None:
             fields = set(self.comment_include_fields) | core_fields
             if self.comment_exclude_fields:
-                fields -= self.comment_exclude_fields
+                fields -= (self.comment_exclude_fields - set(Comment.REQUIRED_FIELDS))
         else:
             fields = CommentField.all_fields() - self.comment_exclude_fields
-            fields |= {"id", "post_id", "parent_id"} | self._comment_filter_fields
+            fields |= core_fields
 
         return fields
 

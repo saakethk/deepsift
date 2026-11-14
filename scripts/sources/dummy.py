@@ -68,7 +68,7 @@ class DummySource(Source):
         """
         shard_seed = (self.seed + after_ts) if self.seed is not None else after_ts
         rng = random.Random(shard_seed)
-        fields_set = set(fields) if fields else None
+        fields_set = self.resolve_post_fields(fields)
 
         total_posts = self.posts_per_shard
         time_step = max(1, (before_ts - after_ts) // (total_posts + 1))
@@ -138,7 +138,7 @@ class DummySource(Source):
         Simulates server-side field projection if fields are provided.
         """
         clean_id = str(post_id).replace("t3_", "")
-        fields_set = set(fields) if fields else None
+        fields_set = self.resolve_comment_fields(fields)
         base_hash = zlib.crc32(clean_id.encode())
         comment_seed = (base_hash ^ self.seed) if self.seed is not None else base_hash
         rng = random.Random(comment_seed)

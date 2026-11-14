@@ -51,7 +51,8 @@ class ArcticShiftSource(Source):
         """
         s = session or requests.Session()
         current_before = before_ts
-        fields_str = ",".join(sorted(fields)) if fields else None
+        projected = self.resolve_post_fields(fields)
+        fields_str = ",".join(sorted(projected)) if projected else None
 
         while current_before > after_ts:
             params = {
@@ -169,8 +170,9 @@ class ArcticShiftSource(Source):
     ) -> List[Dict[str, Any]]:
         """Fallback to /api/comments/search with field projection."""
         params = {"link_id": f"t3_{clean_id}", "limit": self.batch_size}
-        if fields:
-            params["fields"] = ",".join(sorted(fields))
+        projected = self.resolve_comment_fields(fields)
+        if projected:
+            params["fields"] = ",".join(sorted(projected))
 
         try:
             resp = await client.get(

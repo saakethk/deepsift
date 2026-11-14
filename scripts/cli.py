@@ -119,13 +119,12 @@ def posts(subreddits, subreddits_file, from_dt, to_dt, shard_days, include_field
         post_workers=post_workers,
         shard_days=shard_days,
     )
-    matched = scraper.scrape_posts(
+    scraper.scrape_posts(
         subreddits=target_subs,
         from_dt=from_dt,
         to_dt=to_dt,
         output_path=output,
     )
-    click.secho(f"[✓] Post scan complete. Saved {len(matched):,} posts to {output}", fg="green")
 
 
 @cli.command()
@@ -147,8 +146,7 @@ def comments(post_ids, include_fields, exclude_fields, output, workers, source):
         source=get_source(source),
         comment_workers=workers,
     )
-    count = scraper.scrape_comments(post_ids=list(post_ids), output_path=output)
-    click.secho(f"[✓] Comments complete. Saved {count:,} comments to {output}", fg="green")
+    scraper.scrape_comments(post_ids=list(post_ids), output_path=output)
 
 
 @cli.command()

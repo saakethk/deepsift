@@ -26,10 +26,12 @@ from scripts.sources import Source, ArcticShiftSource
 from scripts.storage import ParquetStreamer
 
 
-def to_utc_datetime(val: Union[datetime, str, None]) -> Optional[datetime]:
-    """Normalizes datetime object or ISO/YYYY-MM-DD string to timezone-aware UTC datetime."""
+def to_utc_datetime(val: Union[datetime, str, int, float, None]) -> Optional[datetime]:
+    """Normalizes datetime object, epoch timestamp, or ISO/YYYY-MM-DD string to timezone-aware UTC datetime."""
     if val is None:
         return None
+    if isinstance(val, (int, float)):
+        return datetime.fromtimestamp(val, tz=timezone.utc)
     if isinstance(val, datetime):
         if val.tzinfo is None:
             return val.replace(tzinfo=timezone.utc)
@@ -43,7 +45,7 @@ def to_utc_datetime(val: Union[datetime, str, None]) -> Optional[datetime]:
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
         return dt.astimezone(timezone.utc)
-    raise TypeError(f"Expected datetime or str date, got {type(val).__name__}")
+    raise TypeError(f"Expected datetime, numeric timestamp, or str date, got {type(val).__name__}")
 
 
 class RedditScraper:
@@ -99,45 +101,51 @@ class RedditScraper:
 
     def _scan_shard(
         self, subreddit: str, after_ts: int, before_ts: int,
-        streamer: ParquetStreamer, session: requests.Session,
+        streamer: ParquetStreamer,
         seen_ids: set, seen_lock: threading.Lock
     ) -> list[str]:
         matched_ids = []
+        session = requests.Session()
+        adapter = requests.adapters.HTTPAdapter(pool_connections=5, pool_maxsize=5, max_retries=3)
+        session.mount("https://", adapter)
+        session.mount("http://", adapter)
 
-        # Delegate pagination and network querying to data source with minimal field projection
-        post_fields = self.filters.required_post_fields
-        for batch in self.source.fetch_posts_shard(subreddit, after_ts, before_ts, fields=post_fields, session=session):
-            matching_batch = []
-            for raw_post in batch:
-                if int(raw_post.get("created_utc", 0)) <= after_ts:
-                    break
+        try:
+            post_fields = self.filters.required_post_fields
+            for batch in self.source.fetch_posts_shard(subreddit, after_ts, before_ts, fields=post_fields, session=session):
+                matching_batch = []
+                for raw_post in batch:
+                    if int(raw_post.get("created_utc", 0)) <= after_ts:
+                        break
 
-                post_id = str(raw_post.get("id"))
-                with seen_lock:
-                    if post_id in seen_ids:
-                        continue
-
-                # Construct Post object directly from raw payload
-                post = Post.from_api_dict(raw_post)
-
-                # Evaluate custom filter with Post object
-                if self.filters.is_valid_post(post):
+                    post_id = str(raw_post.get("id"))
                     with seen_lock:
-                        if post_id not in seen_ids:
-                            seen_ids.add(post_id)
-                            matching_batch.append(self.filters.filter_post_record(post))
-                            matched_ids.append(post.id)
+                        if post_id in seen_ids:
+                            continue
 
-            if matching_batch:
-                streamer.write_batch(matching_batch)
+                    # Construct Post object directly from raw payload
+                    post = Post.from_api_dict(raw_post)
+
+                    # Evaluate custom filter with Post object
+                    if self.filters.is_valid_post(post):
+                        with seen_lock:
+                            if post_id not in seen_ids:
+                                seen_ids.add(post_id)
+                                matching_batch.append(self.filters.filter_post_record(post))
+                                matched_ids.append(post.id)
+
+                if matching_batch:
+                    streamer.write_batch(matching_batch)
+        finally:
+            session.close()
 
         return matched_ids
 
     def scrape_posts(
         self,
         subreddits: Union[str, List[str]],
-        from_dt: Union[datetime, str],
-        to_dt: Optional[Union[datetime, str]] = None,
+        from_dt: Union[datetime, str, int, float],
+        to_dt: Optional[Union[datetime, str, int, float]] = None,
         output_path: str = "data/curated_posts.parquet",
     ) -> list[str]:
         """
@@ -150,10 +158,6 @@ class RedditScraper:
             os.remove(output_path)
 
         shards, start_dt, end_dt = self._generate_shards(from_dt=from_dt, to_dt=to_dt)
-        session = requests.Session()
-        adapter = requests.adapters.HTTPAdapter(pool_connections=12, pool_maxsize=12, max_retries=3)
-        session.mount("https://", adapter)
-
         seen_ids = set()
         seen_lock = threading.Lock()
         all_matched_ids = []
@@ -169,7 +173,7 @@ class RedditScraper:
                 print(f"  --> Scanning r/{sub}...")
                 with ThreadPoolExecutor(max_workers=self.post_workers) as executor:
                     futures = [
-                        executor.submit(self._scan_shard, sub, after_ts, before_ts, streamer, session, seen_ids, seen_lock)
+                        executor.submit(self._scan_shard, sub, after_ts, before_ts, streamer, seen_ids, seen_lock)
                         for after_ts, before_ts in shards
                     ]
                     for future in tqdm(as_completed(futures), total=len(futures), desc=f"r/{sub} shards"):
