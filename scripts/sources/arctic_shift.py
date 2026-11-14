@@ -93,7 +93,10 @@ class ArcticShiftSource(Source):
             yield data
 
             oldest = int(data[-1].get("created_utc", 0))
-            current_before = current_before - 1 if oldest >= current_before else oldest
+            if oldest > after_ts:
+                current_before = current_before - 1 if oldest >= current_before else oldest
+            else:
+                current_before -= 1
             time.sleep(self.rate_limit_delay)
 
     async def fetch_comments_for_post(
@@ -122,9 +125,11 @@ class ArcticShiftSource(Source):
                 )
                 if resp.status_code == 200:
                     json_data = resp.json()
-                    raw = json_data.get("data") or json_data.get("comments") or json_data
-                    cleaned = self._unpack_nodes(raw, clean_id)
-                    if not cleaned:
+                    raw = json_data.get("data")
+                    if raw is None and "comments" in json_data:
+                        raw = json_data["comments"]
+                    cleaned = self._unpack_nodes(raw if raw is not None else json_data, clean_id)
+                    if not cleaned and raw is None:
                         cleaned = await self._fetch_search_fallback(client, clean_id, fields=fields)
                     return clean_id, cleaned, True
 

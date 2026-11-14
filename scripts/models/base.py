@@ -45,6 +45,8 @@ class RedditEntity:
 
     def __getitem__(self, key: Union[str, FieldEnum]) -> Any:
         key_str = key.value if isinstance(key, FieldEnum) else str(key)
+        if key_str in self._data:
+            return self._data[key_str]
         return getattr(self, key_str)
 
     def get(self, key: Union[str, FieldEnum], default: Any = None) -> Any:
