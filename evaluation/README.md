@@ -34,7 +34,11 @@ python -m evaluation.scaling_experiment
 ### 2. Live Arctic Shift Benchmark (`r/resumes`)
 Evaluates real-world network requests, server-side projection, and tree resolution against the live Arctic Shift API:
 ```bash
-python -m evaluation.benchmark --mode live --subreddit resumes --from-ts 1704150000 --to-ts 1704153600
+# Single live window benchmark
+python -m evaluation.benchmark --mode live --subreddit resumes --from-ts 1704140000 --to-ts 1704153600
+
+# Multi-window live scaling experiment
+python -m evaluation.live_scaling_experiment
 ```
 
 ---
