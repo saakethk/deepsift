@@ -49,55 +49,59 @@ class ArcticShiftSource(Source):
         Paginates backwards through Arctic Shift posts in time window [after_ts, before_ts].
         If fields is specified, requests only those fields from the server.
         """
+        close_session = session is None
         s = session or requests.Session()
         current_before = before_ts
         projected = self.resolve_post_fields(fields)
         fields_str = ",".join(sorted(projected)) if projected else None
 
-        while current_before > after_ts:
-            params = {
-                "subreddit": subreddit,
-                "limit": self.batch_size,
-                "before": current_before,
-                "after": after_ts,
-            }
-            if fields_str:
-                params["fields"] = fields_str
+        try:
+            while current_before > after_ts:
+                params = {
+                    "subreddit": subreddit,
+                    "limit": self.batch_size,
+                    "before": current_before,
+                    "after": after_ts,
+                }
+                if fields_str:
+                    params["fields"] = fields_str
 
-            data = None
-            backoff = 2.0
-            for _ in range(5):
-                try:
-                    res = s.get(
-                        f"{self.base_url}/api/posts/search",
-                        params=params,
-                        headers=self.headers,
-                        timeout=self.timeout,
-                    )
-                    if res.status_code == 200:
-                        data = res.json().get("data", [])
-                        break
-                    time.sleep(backoff)
-                    backoff *= 1.8
-                except requests.RequestException:
-                    time.sleep(backoff)
-                    backoff *= 1.8
+                data = None
+                backoff = 2.0
+                for _ in range(5):
+                    try:
+                        res = s.get(
+                            f"{self.base_url}/api/posts/search",
+                            params=params,
+                            headers=self.headers,
+                            timeout=self.timeout,
+                        )
+                        if res.status_code == 200:
+                            data = res.json().get("data", [])
+                            break
+                        time.sleep(backoff)
+                        backoff *= 1.8
+                    except requests.RequestException:
+                        time.sleep(backoff)
+                        backoff *= 1.8
 
-            if data is None:
-                current_before -= 86400  # Step back 1 day on persistent network timeout
-                continue
+                if data is None:
+                    current_before -= 86400  # Step back 1 day on persistent network timeout
+                    continue
 
-            if not data:
-                break
+                if not data:
+                    break
 
-            yield data
+                yield data
 
-            oldest = int(data[-1].get("created_utc", 0))
-            if oldest > after_ts:
+                oldest = int(data[-1].get("created_utc", 0))
+                if oldest <= after_ts:
+                    break
                 current_before = current_before - 1 if oldest >= current_before else oldest
-            else:
-                current_before -= 1
-            time.sleep(self.rate_limit_delay)
+                time.sleep(self.rate_limit_delay)
+        finally:
+            if close_session:
+                s.close()
 
     async def fetch_comments_for_post(
         self,
@@ -135,7 +139,7 @@ class ArcticShiftSource(Source):
 
                 await asyncio.sleep(backoff)
                 backoff *= 1.6
-            except (httpx.RequestError, httpx.TimeoutException):
+            except Exception:
                 await asyncio.sleep(backoff)
                 backoff *= 1.6
 
@@ -157,16 +161,31 @@ class ArcticShiftSource(Source):
             if not isinstance(node, dict):
                 continue
 
-            raw_comment = node.get("comment") or node.get("data") or node
+            raw_comment = None
+            if "comment" in node and isinstance(node["comment"], dict):
+                raw_comment = node["comment"]
+            elif "data" in node and isinstance(node["data"], dict):
+                raw_comment = node["data"]
+            elif "body" in node or "id" in node or "author" in node:
+                raw_comment = node
+
+            replies = node.get("replies") or node.get("children") or []
+            if raw_comment and not replies:
+                replies = raw_comment.get("replies") or raw_comment.get("children") or []
+
+            if isinstance(replies, dict):
+                replies = replies.get("data", {}).get("children", []) if "data" in replies else list(replies.values())
+            if isinstance(replies, list) and replies:
+                for child in reversed(replies):
+                    stack.append(child)
+
+            if not raw_comment:
+                continue
+
             comment_dict = dict(raw_comment)
             if "post_id" not in comment_dict:
                 comment_dict["post_id"] = post_id
             flat.append(comment_dict)
-
-            replies = node.get("replies") or node.get("children") or []
-            if isinstance(replies, list) and replies:
-                for child in reversed(replies):
-                    stack.append(child)
 
         return flat
 
@@ -175,8 +194,10 @@ class ArcticShiftSource(Source):
     ) -> List[Dict[str, Any]]:
         """Fallback to /api/comments/search with field projection and backward pagination."""
         all_comments = []
+        seen_ids = set()
         projected = self.resolve_comment_fields(fields)
-        fields_str = ",".join(sorted(projected)) if projected else None
+        query_fields = (set(projected) | {"id", "created_utc"}) if projected else None
+        fields_str = ",".join(sorted(query_fields)) if query_fields else None
         current_before = None
 
         for _ in range(25):
@@ -198,14 +219,23 @@ class ArcticShiftSource(Source):
                     if not raw:
                         break
                     for item in raw:
+                        cid = str(item.get("id", ""))
+                        if cid and cid in seen_ids:
+                            continue
+                        if cid:
+                            seen_ids.add(cid)
                         if "post_id" not in item:
                             item["post_id"] = clean_id
-                    all_comments.extend(raw)
+                        all_comments.append(item)
                     if len(raw) < self.batch_size:
                         break
                     oldest_ts = raw[-1].get("created_utc")
-                    if oldest_ts and (current_before is None or oldest_ts < current_before):
-                        current_before = oldest_ts
+                    if oldest_ts is not None:
+                        try:
+                            oldest_int = int(oldest_ts)
+                            current_before = oldest_int - 1 if (current_before is not None and oldest_int >= current_before) else oldest_int
+                        except (ValueError, TypeError):
+                            break
                     else:
                         break
                 else:

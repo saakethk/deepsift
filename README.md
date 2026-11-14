@@ -18,3 +18,8 @@ After evaluating the preliminary cohort of data against these standards, we foun
 
 
 
+# TODO
+- make static tests using dummy source (runs on github ci/cd)
+- make live tests using actual source on r/resumes
+- make evlauation script
+- writeup and documentation with benchmarks, docs page, and cleaned repo

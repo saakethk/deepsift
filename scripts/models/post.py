@@ -18,13 +18,6 @@ class Post(RedditEntity):
     def from_api_dict(cls, data: Dict[str, Any]) -> "Post":
         return cls(data)
 
-    @property
-    def has_image(self) -> bool:
-        """Helper to check if post links to or contains an image (.png, .jpg, .jpeg, or i.redd.it)."""
-        url = str(self.url or "")
-        clean = url.lower().split("?")[0].strip()
-        return clean.endswith((".png", ".jpg", ".jpeg")) or ("i.redd.it" in clean)
-
     def __repr__(self) -> str:
         post_id = self._data.get("id", "")
         title = self._data.get("title", "")

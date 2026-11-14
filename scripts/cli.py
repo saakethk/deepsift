@@ -28,13 +28,14 @@ def cli():
 @click.option("--comment-exclude-fields", multiple=True, help="Unimportant comment fields to drop.")
 @click.option("--posts-out", default="data/curated_posts.parquet", help="Parquet output destination for posts.")
 @click.option("--comments-out", default="data/curated_comments.parquet", help="Parquet output destination for comments.")
+@click.option("--errors-out", default="data/errors.json", help="JSON output destination for failure logs.")
 @click.option("--post-workers", default=4, type=int, help="Parallel shard post workers.")
 @click.option("--comment-workers", default=5, type=int, help="Async comment concurrency workers.")
 @click.option("--source", default="arctic_shift", type=click.Choice(["arctic_shift"]), help="Data source provider.")
 def run(
     subreddits, from_dt, to_dt, shard_days,
     include_fields, exclude_fields, comment_include_fields, comment_exclude_fields,
-    posts_out, comments_out, post_workers, comment_workers, source
+    posts_out, comments_out, errors_out, post_workers, comment_workers, source
 ):
     """Run full pipeline: scrape posts, filter cohort, and extract comment trees."""
     target_subs = list(subreddits)
@@ -76,9 +77,10 @@ def run(
             to_dt=to_dt,
             posts_output=posts_out,
             comments_output=comments_out,
+            errors_output=errors_out,
         )
-    except ValueError as e:
-        click.secho(f"\n[!] Parameter Error: {e}", fg="red", err=True)
+    except Exception as e:
+        click.secho(f"\n[!] Pipeline Error: {e}", fg="red", err=True)
         sys.exit(1)
 
     elapsed = round(time.time() - start_time, 1)
@@ -95,9 +97,10 @@ def run(
 @click.option("--include-fields", "-i", multiple=True, help="Important post fields to keep.")
 @click.option("--exclude-fields", "-e", multiple=True, help="Unimportant post fields to drop.")
 @click.option("--output", "-o", default="data/curated_posts.parquet", help="Parquet output destination.")
+@click.option("--errors-out", default="data/errors.json", help="JSON output destination for failure logs.")
 @click.option("--post-workers", default=4, type=int, help="Parallel shard post workers.")
 @click.option("--source", default="arctic_shift", type=click.Choice(["arctic_shift"]), help="Data source provider.")
-def posts(subreddits, from_dt, to_dt, shard_days, include_fields, exclude_fields, output, post_workers, source):
+def posts(subreddits, from_dt, to_dt, shard_days, include_fields, exclude_fields, output, errors_out, post_workers, source):
     """Scrape and filter Reddit posts between --from and --to dates."""
     target_subs = list(subreddits)
     try:
@@ -117,8 +120,9 @@ def posts(subreddits, from_dt, to_dt, shard_days, include_fields, exclude_fields
             from_dt=from_dt,
             to_dt=to_dt,
             output_path=output,
+            errors_output=errors_out,
         )
-    except ValueError as e:
+    except Exception as e:
         click.secho(f"\n[!] Error: {e}", fg="red", err=True)
         sys.exit(1)
 
@@ -128,9 +132,10 @@ def posts(subreddits, from_dt, to_dt, shard_days, include_fields, exclude_fields
 @click.option("--include-fields", "-i", multiple=True, help="Important comment fields to keep.")
 @click.option("--exclude-fields", "-e", multiple=True, help="Unimportant comment fields to drop.")
 @click.option("--output", "-o", default="data/curated_comments.parquet", help="Parquet output destination.")
+@click.option("--errors-out", default="data/errors.json", help="JSON output destination for failure logs.")
 @click.option("--workers", "-w", default=5, type=int, help="Async concurrency limit.")
 @click.option("--source", default="arctic_shift", type=click.Choice(["arctic_shift"]), help="Data source provider.")
-def comments(post_ids, include_fields, exclude_fields, output, workers, source):
+def comments(post_ids, include_fields, exclude_fields, output, errors_out, workers, source):
     """Scrape comment trees for given post IDs."""
     try:
         filters = Filters(
@@ -143,8 +148,8 @@ def comments(post_ids, include_fields, exclude_fields, output, workers, source):
             source=get_source(source),
             comment_workers=workers,
         )
-        scraper.scrape_comments(post_ids=list(post_ids), output_path=output)
-    except ValueError as e:
+        scraper.scrape_comments(post_ids=list(post_ids), output_path=output, errors_output=errors_out)
+    except Exception as e:
         click.secho(f"\n[!] Error: {e}", fg="red", err=True)
         sys.exit(1)
 

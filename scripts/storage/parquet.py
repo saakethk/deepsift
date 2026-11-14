@@ -30,10 +30,11 @@ class ParquetStorage(Storage):
             os.makedirs(dir_path, exist_ok=True)
 
     def _sanitize_schema(self, schema: pa.Schema) -> pa.Schema:
-        """Promotes any untyped null fields to string to avoid subsequent batch type conflicts."""
+        """Promotes null and polymorphic Reddit fields to string to avoid cross-batch type conflicts."""
         fields = []
+        polymorphic = {"edited", "author_flair_text", "link_flair_text"}
         for f in schema:
-            if pa.types.is_null(f.type):
+            if pa.types.is_null(f.type) or f.name in polymorphic:
                 fields.append(pa.field(f.name, pa.string()))
             else:
                 fields.append(f)
@@ -58,14 +59,13 @@ class ParquetStorage(Storage):
                 initial_table = pa.Table.from_pylist(cleaned_batch)
                 self.schema = self._sanitize_schema(initial_table.schema)
                 self.writer = pq.ParquetWriter(self.filepath, self.schema, compression="snappy")
-                table = initial_table.cast(self.schema) if initial_table.schema != self.schema else initial_table
-            else:
-                string_cols = {f.name for f in self.schema if pa.types.is_string(f.type)}
-                for row in cleaned_batch:
-                    for col in string_cols:
-                        if col in row and row[col] is not None and not isinstance(row[col], str):
-                            row[col] = str(row[col])
-                table = pa.Table.from_pylist(cleaned_batch, schema=self.schema)
+
+            string_cols = {f.name for f in self.schema if pa.types.is_string(f.type)}
+            for row in cleaned_batch:
+                for col in string_cols:
+                    if col in row and row[col] is not None and not isinstance(row[col], str):
+                        row[col] = str(row[col])
+            table = pa.Table.from_pylist(cleaned_batch, schema=self.schema)
 
             self.writer.write_table(table)
             self.records_written += len(batch)
