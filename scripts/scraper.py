@@ -16,14 +16,14 @@ import requests
 import httpx
 from datetime import datetime, timedelta, timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import List, Union, Optional, Iterable, Tuple
+from typing import List, Union, Optional, Iterable, Tuple, Type
 from tqdm import tqdm
 from tqdm.asyncio import tqdm as async_tqdm
 
 from scripts.models import Post, Comment
 from scripts.filters import Filters
 from scripts.sources import Source, ArcticShiftSource
-from scripts.storage import ParquetStreamer
+from scripts.storage import Storage, ParquetStorage, ParquetStreamer
 
 
 def to_utc_datetime(val: Union[datetime, str, int, float, None]) -> Optional[datetime]:
@@ -58,12 +58,14 @@ class RedditScraper:
         self,
         filters: Optional[Filters] = None,
         source: Optional[Source] = None,
+        storage_cls: Type[Storage] = ParquetStorage,
         post_workers: int = 4,
         comment_workers: int = 5,
         shard_days: int = 180,
     ):
         self.filters = filters or Filters()
         self.source = source or ArcticShiftSource()
+        self.storage_cls = storage_cls
         self.post_workers = post_workers
         self.comment_workers = comment_workers
         self.shard_days = shard_days
@@ -101,7 +103,7 @@ class RedditScraper:
 
     def _scan_shard(
         self, subreddit: str, after_ts: int, before_ts: int,
-        streamer: ParquetStreamer,
+        streamer: Storage,
         seen_ids: set, seen_lock: threading.Lock
     ) -> list[str]:
         matched_ids = []
@@ -147,6 +149,7 @@ class RedditScraper:
         from_dt: Union[datetime, str, int, float],
         to_dt: Optional[Union[datetime, str, int, float]] = None,
         output_path: str = "data/curated_posts.parquet",
+        storage_cls: Optional[Type[Storage]] = None,
     ) -> list[str]:
         """
         Scans one or multiple subreddits across parallel shards between from_dt and to_dt.
@@ -168,7 +171,8 @@ class RedditScraper:
             f"({len(shards)} shards)"
         )
 
-        with ParquetStreamer(output_path) as streamer:
+        active_storage_cls = storage_cls or self.storage_cls
+        with active_storage_cls(output_path) as streamer:
             for sub in subreddits:
                 print(f"  --> Scanning r/{sub}...")
                 with ThreadPoolExecutor(max_workers=self.post_workers) as executor:
@@ -201,7 +205,13 @@ class RedditScraper:
 
         return clean_id, filtered_comments, success
 
-    async def _scrape_comments_async(self, post_ids: list[str], output_path: str, chunk_size: int = 500) -> int:
+    async def _scrape_comments_async(
+        self,
+        post_ids: list[str],
+        output_path: str,
+        chunk_size: int = 500,
+        storage_cls: Optional[Type[Storage]] = None,
+    ) -> int:
         if os.path.exists(output_path):
             os.remove(output_path)
 
@@ -212,7 +222,8 @@ class RedditScraper:
         print(f"[*] Fetching comments using [{self.source.name}] for {len(post_ids):,} posts with {self.comment_workers} async workers...")
 
         comment_fields = self.filters.required_comment_fields
-        with ParquetStreamer(output_path) as streamer:
+        active_storage_cls = storage_cls or self.storage_cls
+        with active_storage_cls(output_path) as streamer:
             async with httpx.AsyncClient(limits=limits) as client:
                 tasks = [self._fetch_comments_for_post(client, pid, semaphore, fields=comment_fields) for pid in post_ids]
 
@@ -252,9 +263,10 @@ class RedditScraper:
         post_ids: list[str],
         output_path: str = "data/curated_comments.parquet",
         chunk_size: int = 500,
+        storage_cls: Optional[Type[Storage]] = None,
     ) -> int:
         """
-        Concurrently scrapes comments for target posts and writes to Parquet.
+        Concurrently scrapes comments for target posts and writes to target storage.
         """
         if not post_ids:
             print("[!] No post IDs provided for comment scraping.")
@@ -268,8 +280,12 @@ class RedditScraper:
         if loop and loop.is_running():
             import nest_asyncio
             nest_asyncio.apply()
-            return loop.run_until_complete(self._scrape_comments_async(post_ids, output_path, chunk_size))
-        return asyncio.run(self._scrape_comments_async(post_ids, output_path, chunk_size))
+            return loop.run_until_complete(
+                self._scrape_comments_async(post_ids, output_path, chunk_size, storage_cls=storage_cls)
+            )
+        return asyncio.run(
+            self._scrape_comments_async(post_ids, output_path, chunk_size, storage_cls=storage_cls)
+        )
 
     def run(
         self,
@@ -278,6 +294,7 @@ class RedditScraper:
         to_dt: Optional[Union[datetime, str]] = None,
         posts_output: str = "data/curated_posts.parquet",
         comments_output: str = "data/curated_comments.parquet",
+        storage_cls: Optional[Type[Storage]] = None,
     ) -> tuple[list[str], int]:
         """
         Runs full pipeline: post scanning -> filtering -> comment extraction.
@@ -288,6 +305,7 @@ class RedditScraper:
             from_dt=from_dt,
             to_dt=to_dt,
             output_path=posts_output,
+            storage_cls=storage_cls,
         )
 
         total_comments = 0
@@ -295,6 +313,7 @@ class RedditScraper:
             total_comments = self.scrape_comments(
                 post_ids=matched_post_ids,
                 output_path=comments_output,
+                storage_cls=storage_cls,
             )
 
         return matched_post_ids, total_comments

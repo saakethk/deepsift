@@ -5,11 +5,14 @@ Thread-safe direct-to-disk chunked writer.
 import os
 import json
 import threading
+from typing import List, Dict, Any
 import pyarrow as pa
 import pyarrow.parquet as pq
 
+from scripts.storage.base import Storage
 
-class ParquetStreamer:
+
+class ParquetStorage(Storage):
     """
     Direct-to-disk streaming writer for Parquet format.
     Thread-safe across parallel shard workers.
@@ -17,21 +20,14 @@ class ParquetStreamer:
     """
 
     def __init__(self, filepath: str):
-        self.filepath = filepath
+        super().__init__(filepath)
         self.writer = None
         self.schema = None
-        self.records_written = 0
         self._lock = threading.Lock()
 
         dir_path = os.path.dirname(os.path.abspath(filepath))
         if dir_path:
             os.makedirs(dir_path, exist_ok=True)
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
 
     def _sanitize_schema(self, schema: pa.Schema) -> pa.Schema:
         """Promotes any untyped null fields to string to avoid subsequent batch type conflicts."""
@@ -43,7 +39,7 @@ class ParquetStreamer:
                 fields.append(f)
         return pa.schema(fields)
 
-    def write_batch(self, batch: list[dict]):
+    def write_batch(self, batch: List[Dict[str, Any]]):
         if not batch:
             return
 
@@ -72,3 +68,7 @@ class ParquetStreamer:
             if self.writer is not None:
                 self.writer.close()
                 self.writer = None
+
+
+# Backward-compatible alias
+ParquetStreamer = ParquetStorage

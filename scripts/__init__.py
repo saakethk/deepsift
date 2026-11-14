@@ -17,7 +17,7 @@ from scripts.sources import (
     get_source,
     register_source,
 )
-from scripts.storage import ParquetStreamer
+from scripts.storage import Storage, ParquetStorage, ParquetStreamer
 from scripts.scraper import RedditScraper
 
 __all__ = [
@@ -34,5 +34,7 @@ __all__ = [
     "get_source",
     "register_source",
     "RedditScraper",
+    "Storage",
+    "ParquetStorage",
     "ParquetStreamer",
 ]
