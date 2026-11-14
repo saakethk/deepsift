@@ -29,8 +29,19 @@ To run the live integration tests against the actual Arctic Shift API:
 pytest -m live -v
 ```
 
+# Evaluation
+To compare DeepSift against naive sequential execution:
+```bash
+# Synthetic offline benchmark (2,000 posts, 20,000 comments)
+python -m evaluation.benchmark --mode dummy --dummy-posts 2000 --dummy-comments 10
+
+# Live Arctic Shift benchmark on r/resumes
+python -m evaluation.benchmark --mode live --subreddit resumes
+```
+See [evaluation/README.md](file:///Users/saakethkesireddy/Desktop/job_journal/resume_model/evaluation/README.md) for full benchmark methodology and metrics.
+
 # TODO
 - [x] make static tests using dummy source (runs on github ci/cd)
 - [x] make live tests using actual source on r/resumes
-- [ ] make evaluation script
+- [x] make evaluation script
 - [ ] writeup and documentation with benchmarks, docs page, and cleaned repo
