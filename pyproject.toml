@@ -3,9 +3,9 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "reddit-research-scraper"
+name = "deepsift"
 version = "0.2.0"
-description = "A high-performance historical Reddit research toolkit and scraper for Arctic Shift."
+description = "High-performance historical Reddit research toolkit and scraper for Arctic Shift."
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [
@@ -27,8 +27,9 @@ dev = [
 ]
 
 [project.scripts]
-reddit-scraper = "scripts.cli:cli"
+deepsift = "deepsift.cli:cli"
+reddit-scraper = "deepsift.cli:cli"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["scripts*"]
+include = ["deepsift*"]

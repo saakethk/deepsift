@@ -2,10 +2,10 @@ import os
 import json
 from datetime import datetime, date, timezone
 import pytest
-from scripts.models import Post, Comment, UnretrievedFieldError
-from scripts.filters import Filters
-from scripts.sources.dummy import DummySource
-from scripts.scraper import RedditScraper, to_utc_datetime
+from deepsift.models import Post, Comment, UnretrievedFieldError
+from deepsift.filters import Filters
+from deepsift.sources.dummy import DummySource
+from deepsift.scraper import RedditScraper, to_utc_datetime
 
 
 def test_to_utc_datetime_normalization():

@@ -9,7 +9,7 @@ from typing import List, Dict, Any
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from scripts.storage.base import Storage
+from deepsift.storage.base import Storage
 
 
 class ParquetStorage(Storage):

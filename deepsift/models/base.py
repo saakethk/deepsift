@@ -2,7 +2,7 @@
 Base model class and utilities for Reddit entity data models.
 """
 from typing import Dict, Any, Optional, Iterable, Union, Type
-from scripts.models.enums import FieldEnum
+from deepsift.models.enums import FieldEnum
 
 
 class UnretrievedFieldError(AttributeError, KeyError):

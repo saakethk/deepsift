@@ -1,5 +1,5 @@
 from click.testing import CliRunner
-from scripts.cli import cli
+from deepsift.cli import cli
 
 
 def test_cli_fields_command():

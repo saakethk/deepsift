@@ -7,7 +7,7 @@ Calculates the exact server projection fields needed, preventing unwanted fields
 from ever being transmitted over the wire.
 """
 from typing import Callable, Optional, Iterable, Union, Set
-from scripts.models import Post, Comment, PostField, CommentField
+from deepsift.models import Post, Comment, PostField, CommentField
 
 
 class RequiredFieldError(ValueError):

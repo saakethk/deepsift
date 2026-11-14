@@ -2,8 +2,8 @@
 Post data model for Reddit posts.
 """
 from typing import Dict, Any
-from scripts.models.enums import PostField
-from scripts.models.base import RedditEntity
+from deepsift.models.enums import PostField
+from deepsift.models.base import RedditEntity
 
 
 class Post(RedditEntity):

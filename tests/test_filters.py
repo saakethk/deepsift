@@ -1,6 +1,6 @@
 import pytest
-from scripts.models import Post, Comment
-from scripts.filters import Filters, RequiredFieldError
+from deepsift.models import Post, Comment
+from deepsift.filters import Filters, RequiredFieldError
 
 
 def test_filters_default_projection_and_predicates():

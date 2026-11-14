@@ -14,10 +14,10 @@ import httpx
 from tqdm import tqdm
 from tqdm.asyncio import tqdm as async_tqdm
 
-from scripts.models import Post, Comment, UnretrievedFieldError
-from scripts.filters import Filters
-from scripts.sources import Source, ArcticShiftSource
-from scripts.storage import Storage, ParquetStorage
+from deepsift.models import Post, Comment, UnretrievedFieldError
+from deepsift.filters import Filters
+from deepsift.sources import Source, ArcticShiftSource
+from deepsift.storage import Storage, ParquetStorage
 
 
 def to_utc_datetime(val: Union[datetime, date, str, int, float, None]) -> Optional[datetime]:

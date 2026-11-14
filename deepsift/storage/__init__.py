@@ -1,8 +1,8 @@
 """
 Storage subpackage for disk serialization.
 """
-from scripts.storage.base import Storage
-from scripts.storage.parquet import ParquetStorage
+from deepsift.storage.base import Storage
+from deepsift.storage.parquet import ParquetStorage
 
 __all__ = [
     "Storage",

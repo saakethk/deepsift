@@ -2,8 +2,8 @@
 Source registry and factory for Reddit data sources.
 """
 from typing import Dict, Type
-from scripts.sources.base import Source
-from scripts.sources.arctic_shift import ArcticShiftSource
+from deepsift.sources.base import Source
+from deepsift.sources.arctic_shift import ArcticShiftSource
 
 SOURCES: Dict[str, Type[Source]] = {
     "arctic_shift": ArcticShiftSource,

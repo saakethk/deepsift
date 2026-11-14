@@ -7,7 +7,7 @@ import zlib
 from typing import Iterator, List, Dict, Any, Optional, Tuple, Iterable
 import requests
 import httpx
-from scripts.sources.base import Source
+from deepsift.sources.base import Source
 
 
 class DummySource(Source):

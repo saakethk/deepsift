@@ -1,8 +1,8 @@
 import copy
 import pickle
 import pytest
-from scripts.models import Post, Comment, PostField, CommentField, UnretrievedFieldError
-from scripts.models.base import RedditEntity
+from deepsift.models import Post, Comment, PostField, CommentField, UnretrievedFieldError
+from deepsift.models.base import RedditEntity
 
 
 def test_post_creation_and_attributes():

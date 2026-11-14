@@ -2,8 +2,8 @@
 Comment data model for Reddit comments.
 """
 from typing import Dict, Any
-from scripts.models.enums import CommentField
-from scripts.models.base import RedditEntity
+from deepsift.models.enums import CommentField
+from deepsift.models.base import RedditEntity
 
 
 class Comment(RedditEntity):

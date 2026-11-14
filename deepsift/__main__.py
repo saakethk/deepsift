@@ -1,8 +1,8 @@
 """
 Executable package entrypoint for running:
-    python -m scripts [command] [options]
+    python -m deepsift [command] [options]
 """
-from scripts.cli import cli
+from deepsift.cli import cli
 
 if __name__ == "__main__":
     cli()

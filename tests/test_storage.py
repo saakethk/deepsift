@@ -1,7 +1,7 @@
 import os
 from datetime import datetime
 import pyarrow.parquet as pq
-from scripts.storage import ParquetStorage
+from deepsift.storage import ParquetStorage
 
 
 def test_parquet_storage_write_and_read(tmp_path):

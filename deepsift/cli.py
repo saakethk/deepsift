@@ -5,10 +5,10 @@ import sys
 import time
 import click
 
-from scripts.models import PostField, CommentField
-from scripts.filters import Filters
-from scripts.sources import ArcticShiftSource, get_source
-from scripts.scraper import RedditScraper
+from deepsift.models import PostField, CommentField
+from deepsift.filters import Filters
+from deepsift.sources import ArcticShiftSource, get_source
+from deepsift.scraper import RedditScraper
 
 
 @click.group()

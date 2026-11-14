@@ -18,7 +18,7 @@ class Source(ABC):
         """Ensures required post fields (id, created_utc) are present in any projection."""
         if fields is None:
             return None
-        from scripts.models import Post
+        from deepsift.models import Post
         return set(fields) | set(Post.REQUIRED_FIELDS)
 
     @staticmethod
@@ -26,7 +26,7 @@ class Source(ABC):
         """Ensures required comment fields (id, post_id, parent_id) are present in any projection."""
         if fields is None:
             return None
-        from scripts.models import Comment
+        from deepsift.models import Comment
         return set(fields) | set(Comment.REQUIRED_FIELDS)
 
     @property
