@@ -1,14 +1,12 @@
 """
-Full Reddit Research Pipeline CLI.
+Reddit Research Pipeline CLI.
 Runs multi-subreddit extraction using the generalized RedditScraper and Filters library.
-Supports field restriction and validation via PostField and CommentField enumerations.
+Requires explicit --from and optional --to date window.
 """
-import os
 import sys
 import argparse
 import time
 import pandas as pd
-from datetime import datetime, timezone
 
 from scripts.enums import PostField, CommentField
 from scripts.models import Post, Comment
@@ -39,9 +37,11 @@ def run_pipeline():
     parser.add_argument("--source", type=str, default="arctic_shift", choices=["arctic_shift"], help="Data source provider (default: arctic_shift)")
     parser.add_argument("--subreddits", nargs="+", default=["resumes"], help="Target subreddits")
     parser.add_argument("--subreddits_file", type=str, default=None, help="Path to CSV containing subreddit names")
-    parser.add_argument("--days", type=int, default=5 * 365, help="Days back to scrape")
+    parser.add_argument("--from", "--from_date", "--from_dt", dest="from_dt", type=str, required=False, default=None,
+                        help="Start date/datetime (YYYY-MM-DD or ISO). Required unless --list_fields is passed.")
+    parser.add_argument("--to", "--to_date", "--to_dt", dest="to_dt", type=str, default=None,
+                        help="End date/datetime (YYYY-MM-DD or ISO, defaults to today)")
     parser.add_argument("--shard_days", type=int, default=180, help="Size of each time shard in days (default: 180)")
-    parser.add_argument("--anchor", type=str, default=None, help="Anchor date YYYY-MM-DD")
 
     # Column / Field Selection (Enumerations)
     parser.add_argument(
@@ -61,15 +61,9 @@ def run_pipeline():
         help="Unimportant comment fields to drop (validated against CommentField enum)."
     )
 
-    # Optional row threshold adjustments
-    parser.add_argument("--min_score", type=int, default=1, help="Minimum post score threshold (default: 1)")
-    parser.add_argument("--min_comments", type=int, default=11, help="Minimum post comments threshold (default: 11)")
-    parser.add_argument("--no_image_filter", action="store_true", help="Disable mandatory image URL check")
-    parser.add_argument("--include_automod", action="store_true", help="Include AutoModerator comments")
-
     # Output and performance arguments
-    parser.add_argument("--posts_out", type=str, default="data/curated_posts_5yr.parquet", help="Output path for posts")
-    parser.add_argument("--comments_out", type=str, default="data/curated_comments_5yr.parquet", help="Output path for comments")
+    parser.add_argument("--posts_out", type=str, default="data/curated_posts.parquet", help="Output path for posts")
+    parser.add_argument("--comments_out", type=str, default="data/curated_comments.parquet", help="Output path for comments")
     parser.add_argument("--post_workers", type=int, default=4, help="Post shard workers")
     parser.add_argument("--comment_workers", type=int, default=5, help="Async comment workers")
 
@@ -89,6 +83,10 @@ def run_pipeline():
         print("=" * 60)
         return
 
+    if not args.from_dt:
+        print("\n[!] Error: --from (start date/datetime) is required. Example: --from 2021-01-01", file=sys.stderr)
+        sys.exit(1)
+
     # Determine subreddits list
     if args.subreddits_file:
         subreddits = load_subreddits_from_file(args.subreddits_file)
@@ -96,26 +94,11 @@ def run_pipeline():
     else:
         subreddits = args.subreddits
 
-    # Build custom row filter functions
-    def cli_post_filter(post: Post) -> bool:
-        if post.score < args.min_score:
-            return False
-        if post.num_comments < args.min_comments:
-            return False
-        if not args.no_image_filter and not post.is_image:
-            return False
-        return True
-
-    def cli_comment_filter(comment: Comment) -> bool:
-        if not args.include_automod and comment.is_automod:
-            return False
-        return bool(comment.body.strip())
-
-    # Initialize Filters with column restriction and enumeration validation
+    # Initialize Filters with default cohort filters and column selection
     try:
         filters = Filters(
-            post_filter=cli_post_filter,
-            comment_filter=cli_comment_filter,
+            post_filter=resume_cohort_post_filter,
+            comment_filter=default_comment_filter,
             post_include_fields=args.post_include_fields,
             comment_include_fields=args.comment_include_fields,
             post_exclude_fields=args.post_exclude_fields,
@@ -125,13 +108,6 @@ def run_pipeline():
     except ValueError as e:
         print(f"\n[!] Field Validation Error: {e}", file=sys.stderr)
         sys.exit(1)
-
-    # Determine fixed anchor datetime
-    if args.anchor:
-        anchor_dt = datetime.strptime(args.anchor, "%Y-%m-%d").replace(tzinfo=timezone.utc)
-    else:
-        now_utc = datetime.now(timezone.utc)
-        anchor_dt = datetime(now_utc.year, now_utc.month, now_utc.day, tzinfo=timezone.utc)
 
     if args.source == "arctic_shift":
         source = ArcticShiftSource()
@@ -148,8 +124,8 @@ def run_pipeline():
 
     start_time = time.time()
     print("=" * 65)
-    print(f"Reddit Research Scraper: {len(subreddits)} subreddits ({args.days} days, shard_days={args.shard_days})")
-    print(f"Anchored Date: {anchor_dt.strftime('%Y-%m-%d')} 00:00:00 UTC")
+    print(f"Reddit Research Scraper: {len(subreddits)} subreddits (shard_days={args.shard_days})")
+    print(f"Window: from {args.from_dt} to {args.to_dt or 'now'}")
     if filters.post_include_fields:
         print(f"Post Fields Kept: {sorted(list(filters.post_include_fields))}")
     if filters.post_exclude_fields:
@@ -158,10 +134,10 @@ def run_pipeline():
 
     posts, comments = scraper.run(
         subreddits=subreddits,
-        days_back=args.days,
+        from_dt=args.from_dt,
+        to_dt=args.to_dt,
         posts_output=args.posts_out,
         comments_output=args.comments_out,
-        anchor_dt=anchor_dt,
     )
 
     elapsed = round(time.time() - start_time, 1)

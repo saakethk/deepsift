@@ -2,14 +2,13 @@
 Data sources abstraction layer for historical Reddit scraping.
 Defines the abstract base class `Source` and concrete implementations like `ArcticShiftSource`.
 Allows users to plug in custom sources (Pushshift, PullPush, official Reddit API / PRAW, local archives).
+Supports server-side field projection so only required fields are fetched over the wire.
 """
 import time
 import requests
 import httpx
 from abc import ABC, abstractmethod
-from typing import Iterator, List, Dict, Any, Optional, Tuple
-
-from scripts.parsers import unpack_comment_tree
+from typing import Iterator, List, Dict, Any, Optional, Tuple, Iterable
 
 
 class Source(ABC):
@@ -30,10 +29,12 @@ class Source(ABC):
         subreddit: str,
         after_ts: int,
         before_ts: int,
+        fields: Optional[Iterable[str]] = None,
         session: Optional[requests.Session] = None,
     ) -> Iterator[List[Dict[str, Any]]]:
         """
         Yields batches of raw post dictionaries for a given subreddit within [after_ts, before_ts].
+        If fields is provided, requests only those fields from the server.
         """
         pass
 
@@ -42,6 +43,7 @@ class Source(ABC):
         self,
         client: httpx.AsyncClient,
         post_id: str,
+        fields: Optional[Iterable[str]] = None,
         max_retries: int = 5,
     ) -> Tuple[str, List[Dict[str, Any]], bool]:
         """
@@ -50,7 +52,7 @@ class Source(ABC):
         """
         pass
 
-    def fetch_comments(self, post_id: str) -> List[Dict[str, Any]]:
+    def fetch_comments(self, post_id: str, fields: Optional[Iterable[str]] = None) -> List[Dict[str, Any]]:
         """
         Synchronously fetches comments for a single post.
         Default implementation wraps in a single-shot httpx client.
@@ -58,7 +60,7 @@ class Source(ABC):
         import asyncio
         async def _run():
             async with httpx.AsyncClient() as client:
-                _, comments, _ = await self.fetch_comments_for_post(client, post_id)
+                _, comments, _ = await self.fetch_comments_for_post(client, post_id, fields=fields)
                 return comments
         return asyncio.run(_run())
 
@@ -66,6 +68,7 @@ class Source(ABC):
 class ArcticShiftSource(Source):
     """
     Arctic Shift API data source implementation (https://arctic-shift.photon-reddit.com).
+    Supports server-side projection via `fields=` parameter.
     """
 
     BASE_URL = "https://arctic-shift.photon-reddit.com"
@@ -83,19 +86,23 @@ class ArcticShiftSource(Source):
         subreddit: str,
         after_ts: int,
         before_ts: int,
+        fields: Optional[Iterable[str]] = None,
         session: Optional[requests.Session] = None,
     ) -> Iterator[List[Dict[str, Any]]]:
         """
         Paginates backwards through Arctic Shift posts in time window [after_ts, before_ts].
-        Yields each page (list of raw post dicts).
+        If fields is specified, asks the Arctic Shift server to transmit ONLY those fields.
         """
         s = session or requests.Session()
         current_before = before_ts
 
+        # Build query parameters
+        fields_param = f"&fields={','.join(sorted(fields))}" if fields else ""
+
         while current_before > after_ts:
             url = (
                 f"{self.base_url}/api/posts/search"
-                f"?subreddit={subreddit}&limit=100&before={current_before}&after={after_ts}"
+                f"?subreddit={subreddit}&limit=100&before={current_before}&after={after_ts}{fields_param}"
             )
 
             data = None
@@ -129,11 +136,12 @@ class ArcticShiftSource(Source):
         self,
         client: httpx.AsyncClient,
         post_id: str,
+        fields: Optional[Iterable[str]] = None,
         max_retries: int = 5,
     ) -> Tuple[str, List[Dict[str, Any]], bool]:
         """
-        Fetches comments tree from Arctic Shift with search fallback.
-        Unrolls nested reply trees into raw comment dicts.
+        Fetches comments from Arctic Shift.
+        Tree endpoint is attempted first; falls back to search endpoint with fields projection if needed.
         """
         clean_id = str(post_id).replace("t3_", "")
         tree_url = f"{self.base_url}/api/comments/tree?link_id=t3_{clean_id}"
@@ -145,10 +153,9 @@ class ArcticShiftSource(Source):
                 if resp.status_code == 200:
                     json_data = resp.json()
                     raw = json_data.get("data") or json_data.get("comments") or json_data
-                    # Unpack tree nodes without applying filters yet (filtering done by scraper/filters)
                     cleaned = self._unpack_nodes(raw, clean_id)
                     if not cleaned:
-                        cleaned = await self._fetch_search_fallback(client, clean_id)
+                        cleaned = await self._fetch_search_fallback(client, clean_id, fields=fields)
                     return clean_id, cleaned, True
 
                 await asyncio.sleep(backoff)
@@ -157,7 +164,7 @@ class ArcticShiftSource(Source):
                 await asyncio.sleep(backoff)
                 backoff *= 1.6
 
-        fallback = await self._fetch_search_fallback(client, clean_id)
+        fallback = await self._fetch_search_fallback(client, clean_id, fields=fields)
         return clean_id, fallback, bool(fallback)
 
     def _unpack_nodes(self, nodes: Any, post_id: str) -> List[Dict[str, Any]]:
@@ -181,9 +188,12 @@ class ArcticShiftSource(Source):
 
         return flat
 
-    async def _fetch_search_fallback(self, client: httpx.AsyncClient, clean_id: str) -> List[Dict[str, Any]]:
-        """Fallback to /api/comments/search if comment tree is unavailable."""
-        url = f"{self.base_url}/api/comments/search?link_id=t3_{clean_id}&limit=100"
+    async def _fetch_search_fallback(
+        self, client: httpx.AsyncClient, clean_id: str, fields: Optional[Iterable[str]] = None
+    ) -> List[Dict[str, Any]]:
+        """Fallback to /api/comments/search with optional field projection."""
+        fields_param = f"&fields={','.join(sorted(fields))}" if fields else ""
+        url = f"{self.base_url}/api/comments/search?link_id=t3_{clean_id}&limit=100{fields_param}"
         try:
             resp = await client.get(url, timeout=12.0)
             if resp.status_code == 200:

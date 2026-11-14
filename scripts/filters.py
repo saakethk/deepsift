@@ -3,8 +3,9 @@ Generalized Filters class.
 Accepts custom filter functions:
     post_filter:    Callable[[Post], bool]
     comment_filter: Callable[[Comment], bool]
-Validates column restrictions against PostField and CommentField enumerations
-so users can specify what is important (include_fields) and what is not important (exclude_fields).
+Calculates the exact server projection fields needed, so the server never transmits
+unwanted/excluded fields over the wire.
+Validates column restrictions against PostField and CommentField enumerations.
 """
 from typing import Callable, Optional, Iterable, Union, Set
 from scripts.enums import PostField, CommentField
@@ -28,6 +29,8 @@ class Filters:
     1. Row logic: custom post_filter and comment_filter functions taking typed Post / Comment objects.
     2. Column selection: what is important (include_fields) vs unimportant (exclude_fields),
        validated strictly against PostField and CommentField enumerations.
+    3. Server Projection: automatically calculates the minimal set of fields to request from the API,
+       preventing excluded/unimportant fields from ever being transmitted from the server.
     """
 
     def __init__(
@@ -40,6 +43,8 @@ class Filters:
         # Column removal (what is not important / noise to drop)
         post_exclude_fields: Optional[Iterable[Union[str, PostField]]] = None,
         comment_exclude_fields: Optional[Iterable[Union[str, CommentField]]] = None,
+        # Extra fields required by custom filter predicates (if not already in include_fields)
+        additional_filter_fields: Optional[Iterable[Union[str, PostField]]] = None,
         validate: bool = True,
     ):
         self.post_filter = post_filter or (lambda post: True)
@@ -50,11 +55,58 @@ class Filters:
             self.comment_include_fields = CommentField.validate_many(comment_include_fields)
             self.post_exclude_fields = PostField.validate_many(post_exclude_fields)
             self.comment_exclude_fields = CommentField.validate_many(comment_exclude_fields)
+            self.additional_filter_fields = PostField.validate_many(additional_filter_fields)
         else:
             self.post_include_fields = {str(f) for f in post_include_fields} if post_include_fields else None
             self.comment_include_fields = {str(f) for f in comment_include_fields} if comment_include_fields else None
             self.post_exclude_fields = {str(f) for f in post_exclude_fields} if post_exclude_fields else None
             self.comment_exclude_fields = {str(f) for f in comment_exclude_fields} if comment_exclude_fields else None
+            self.additional_filter_fields = {str(f) for f in additional_filter_fields} if additional_filter_fields else None
+
+        # Pre-calculate minimal projection fields for server queries
+        self.required_post_fields: Optional[Set[str]] = self._calculate_required_post_fields()
+        self.required_comment_fields: Optional[Set[str]] = self._calculate_required_comment_fields()
+
+    def _calculate_required_post_fields(self) -> Optional[Set[str]]:
+        """
+        Calculates minimal field set required from the server.
+        Returns None if user wants 100% of raw fields (no include or exclude specified).
+        """
+        if self.post_include_fields is None and self.post_exclude_fields is None:
+            return None
+
+        # Essential for shard pagination and common property evaluation (is_image, score, num_comments)
+        core_fields = {"id", "created_utc", "score", "num_comments", "url"}
+
+        if self.post_include_fields is not None:
+            fields = set(self.post_include_fields) | core_fields
+            if self.post_exclude_fields:
+                fields -= self.post_exclude_fields
+        else:
+            fields = PostField.all_fields() - self.post_exclude_fields
+            fields |= {"id", "created_utc"}
+
+        if self.additional_filter_fields:
+            fields |= self.additional_filter_fields
+
+        return fields
+
+    def _calculate_required_comment_fields(self) -> Optional[Set[str]]:
+        """Calculates minimal comment fields required from the server."""
+        if self.comment_include_fields is None and self.comment_exclude_fields is None:
+            return None
+
+        core_fields = {"id", "comment_id", "post_id", "parent_id", "author", "body", "score", "created_utc"}
+
+        if self.comment_include_fields is not None:
+            fields = set(self.comment_include_fields) | core_fields
+            if self.comment_exclude_fields:
+                fields -= self.comment_exclude_fields
+        else:
+            fields = CommentField.all_fields() - self.comment_exclude_fields
+            fields |= {"id", "post_id", "parent_id"}
+
+        return fields
 
     def is_valid_post(self, post: Post) -> bool:
         """Evaluates custom filter against a typed Post object."""
