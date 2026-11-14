@@ -33,3 +33,8 @@ reddit-scraper = "deepsift.cli:cli"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["deepsift*"]
+
+[tool.pytest.ini_options]
+markers = [
+    "live: marks tests requiring live network connectivity to external APIs (Arctic Shift)",
+]

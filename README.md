@@ -19,13 +19,18 @@ After evaluating the preliminary cohort of data against these standards, we foun
 
 
 # Testing
-To run the static unit and integration test suite using the synthetic `DummySource`:
+To run the static unit and integration test suite offline using the synthetic `DummySource`:
 ```bash
-pytest -v
+pytest -m "not live" -v
+```
+
+To run the live integration tests against the actual Arctic Shift API:
+```bash
+pytest -m live -v
 ```
 
 # TODO
 - [x] make static tests using dummy source (runs on github ci/cd)
-- [ ] make live tests using actual source on r/resumes
+- [x] make live tests using actual source on r/resumes
 - [ ] make evaluation script
 - [ ] writeup and documentation with benchmarks, docs page, and cleaned repo

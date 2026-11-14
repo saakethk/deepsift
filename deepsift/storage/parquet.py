@@ -19,6 +19,8 @@ class ParquetStorage(Storage):
     Handles dynamic column schemas across batches by serializing complex nested values.
     """
 
+    POLYMORPHIC_FIELDS = frozenset({"edited", "author_flair_text", "link_flair_text", "distinguished"})
+
     def __init__(self, filepath: str):
         super().__init__(filepath)
         self.writer = None
@@ -33,9 +35,8 @@ class ParquetStorage(Storage):
     def _sanitize_schema(self, schema: pa.Schema) -> pa.Schema:
         """Promotes null and polymorphic Reddit fields to string to avoid cross-batch type conflicts."""
         fields = []
-        polymorphic = {"edited", "author_flair_text", "link_flair_text"}
         for f in schema:
-            if pa.types.is_null(f.type) or f.name in polymorphic:
+            if pa.types.is_null(f.type) or f.name in self.POLYMORPHIC_FIELDS:
                 fields.append(pa.field(f.name, pa.string()))
             else:
                 fields.append(f)
@@ -53,6 +54,8 @@ class ParquetStorage(Storage):
             for k, v in row.items():
                 if isinstance(v, (dict, list)):
                     clean_row[k] = json.dumps(v, default=str)
+                elif k in self.POLYMORPHIC_FIELDS and v is not None and not isinstance(v, str):
+                    clean_row[k] = str(v)
                 else:
                     clean_row[k] = v
             cleaned_batch.append(clean_row)
