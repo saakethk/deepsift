@@ -41,7 +41,7 @@ def run(
 
     try:
         filters = Filters(
-            post_filter=resume_cohort_post_filter,
+            post_filter=None,
             comment_filter=None,
             post_include_fields=list(include_fields) if include_fields else None,
             post_exclude_fields=list(exclude_fields) if exclude_fields else None,
@@ -97,7 +97,7 @@ def posts(subreddits, from_dt, to_dt, shard_days, include_fields, exclude_fields
     """Scrape and filter Reddit posts between --from and --to dates."""
     target_subs = list(subreddits)
     filters = Filters(
-        post_filter=resume_cohort_post_filter,
+        post_filter=None,
         post_include_fields=list(include_fields) if include_fields else None,
         post_exclude_fields=list(exclude_fields) if exclude_fields else None,
     )

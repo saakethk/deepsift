@@ -10,7 +10,7 @@ from scripts.models import (
     FieldEnum,
     UnretrievedFieldError,
 )
-from scripts.filters import Filters, resume_cohort_post_filter
+from scripts.filters import Filters
 from scripts.sources import (
     Source,
     ArcticShiftSource,
@@ -28,7 +28,6 @@ __all__ = [
     "Comment",
     "UnretrievedFieldError",
     "Filters",
-    "resume_cohort_post_filter",
     "Source",
     "ArcticShiftSource",
     "get_source",
