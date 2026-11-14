@@ -27,4 +27,4 @@ class Post(RedditEntity):
     def __repr__(self) -> str:
         post_id = self._data.get("id", "")
         title = self._data.get("title", "")
-        return f"<Post id={post_id!r} title={title[:30]!r}>"
+        return f"<Post id={post_id!r} title={title[:30]!r}>" if title else f"<Post id={post_id!r}>"

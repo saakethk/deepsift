@@ -30,5 +30,4 @@ class Comment(RedditEntity):
 
     def __repr__(self) -> str:
         cid = self._data.get("id", "")
-        author = self._data.get("author", "")
-        return f"<Comment id={cid!r} author={author!r}>"
+        return f"<Comment id={cid!r}>"

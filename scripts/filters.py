@@ -211,15 +211,9 @@ class Filters:
         return bool(self.comment_filter(comment))
 
     def filter_post_record(self, post: Post) -> dict:
-        """Serializes post to dict, retaining only the fields deemed important."""
-        return post.to_dict(
-            include_fields=self.post_include_fields,
-            exclude_fields=self.post_exclude_fields,
-        )
+        """Serializes post to dict."""
+        return post.to_dict()
 
     def filter_comment_record(self, comment: Comment) -> dict:
-        """Serializes comment to dict, retaining only the fields deemed important."""
-        return comment.to_dict(
-            include_fields=self.comment_include_fields,
-            exclude_fields=self.comment_exclude_fields,
-        )
+        """Serializes comment to dict."""
+        return comment.to_dict()
