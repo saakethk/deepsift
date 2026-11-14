@@ -3,6 +3,7 @@ Enumerations of all known Arctic Shift / Reddit API fields for Posts and Comment
 Allows users to specify, restrict, and validate what is important (include)
 and what is not important (exclude).
 """
+
 import difflib
 from enum import Enum
 from typing import Iterable, Set, Optional, Union, List

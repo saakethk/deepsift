@@ -1,9 +1,10 @@
 """
-Generalized Reddit Scraper Library for Arctic Shift.
-Supports:
+Generalized Reddit Scraper Library.
+Coordinates:
 - Multi-subreddit post scanning with time-window sharding
+- Pluggable data sources (inheriting from Source ABC)
 - Strongly-typed Post and Comment models
-- Custom callable Filters
+- Custom callable Filters and column restriction
 - Direct-to-disk streaming to Parquet
 """
 import os
@@ -20,23 +21,26 @@ from tqdm.asyncio import tqdm as async_tqdm
 
 from scripts.models import Post, Comment
 from scripts.filters import Filters
-from scripts.parsers import unpack_comment_tree
+from scripts.sources import Source, ArcticShiftSource
 from scripts.parquet_streamer import ParquetStreamer
 
 
 class RedditScraper:
     """
-    Generalized scraper client for Arctic Shift historical Reddit data.
+    Generalized scraper orchestrator for historical Reddit data.
+    Works with any backend conforming to the Source abstract base class.
     """
 
     def __init__(
         self,
         filters: Optional[Filters] = None,
+        source: Optional[Source] = None,
         post_workers: int = 4,
         comment_workers: int = 5,
         shard_days: int = 180,
     ):
         self.filters = filters or Filters()
+        self.source = source or ArcticShiftSource()
         self.post_workers = post_workers
         self.comment_workers = comment_workers
         self.shard_days = shard_days
@@ -66,37 +70,11 @@ class RedditScraper:
         seen_ids: set, seen_lock: threading.Lock
     ) -> list[str]:
         matched_ids = []
-        current_before = before_ts
 
-        while current_before > after_ts:
-            url = (
-                f"https://arctic-shift.photon-reddit.com/api/posts/search"
-                f"?subreddit={subreddit}&limit=100&before={current_before}&after={after_ts}"
-            )
-
-            data = None
-            backoff = 2.0
-            for _ in range(5):
-                try:
-                    res = session.get(url, timeout=15)
-                    if res.status_code == 200:
-                        data = res.json().get("data", [])
-                        break
-                    time.sleep(backoff)
-                    backoff *= 1.8
-                except requests.RequestException:
-                    time.sleep(backoff)
-                    backoff *= 1.8
-
-            if data is None:
-                current_before -= 86400  # Step back 1 day on persistent network timeout
-                continue
-
-            if not data:
-                break
-
+        # Delegate pagination and network querying to data source
+        for batch in self.source.fetch_posts_shard(subreddit, after_ts, before_ts, session=session):
             matching_batch = []
-            for raw_post in data:
+            for raw_post in batch:
                 if int(raw_post.get("created_utc", 0)) <= after_ts:
                     break
 
@@ -118,10 +96,6 @@ class RedditScraper:
 
             if matching_batch:
                 streamer.write_batch(matching_batch)
-
-            oldest = data[-1]["created_utc"]
-            current_before = current_before - 1 if oldest >= current_before else oldest
-            time.sleep(0.3)
 
         return matched_ids
 
@@ -150,7 +124,7 @@ class RedditScraper:
         seen_lock = threading.Lock()
         all_matched_ids = []
 
-        print(f"[*] Starting post scan across {len(subreddits)} subreddit(s) and {len(shards)} shard(s)...")
+        print(f"[*] Starting post scan using [{self.source.name}] across {len(subreddits)} subreddit(s) and {len(shards)} shard(s)...")
 
         with ParquetStreamer(output_path) as streamer:
             for sub in subreddits:
@@ -173,46 +147,19 @@ class RedditScraper:
     async def _fetch_comments_for_post(
         self, client: httpx.AsyncClient, post_id: str, semaphore: asyncio.Semaphore, max_retries: int = 5
     ) -> tuple[str, list[dict], bool]:
-        clean_id = str(post_id).replace("t3_", "")
-        tree_url = f"https://arctic-shift.photon-reddit.com/api/comments/tree?link_id=t3_{clean_id}"
-        backoff = 2.0
-
         async with semaphore:
-            for _ in range(max_retries):
-                try:
-                    resp = await client.get(tree_url, timeout=12.0)
-                    if resp.status_code == 200:
-                        json_data = resp.json()
-                        raw = json_data.get("data") or json_data.get("comments") or json_data
-                        cleaned = unpack_comment_tree(raw, clean_id, self.filters)
-                        if not cleaned:
-                            cleaned = await self._fetch_search_fallback(client, clean_id)
-                        return clean_id, cleaned, True
+            clean_id, raw_comments, success = await self.source.fetch_comments_for_post(
+                client=client, post_id=post_id, max_retries=max_retries
+            )
 
-                    await asyncio.sleep(backoff)
-                    backoff *= 1.6
-                except (httpx.RequestError, httpx.TimeoutException):
-                    await asyncio.sleep(backoff)
-                    backoff *= 1.6
+        # Filter raw comments through filters and select columns
+        filtered_comments = []
+        for raw_c in raw_comments:
+            comment = Comment.from_api_dict(raw_c, clean_id)
+            if self.filters.is_valid_comment(comment):
+                filtered_comments.append(self.filters.filter_comment_record(comment))
 
-        fallback = await self._fetch_search_fallback(client, clean_id)
-        return clean_id, fallback, bool(fallback)
-
-    async def _fetch_search_fallback(self, client: httpx.AsyncClient, clean_id: str) -> list[dict]:
-        url = f"https://arctic-shift.photon-reddit.com/api/comments/search?link_id=t3_{clean_id}&limit=100"
-        try:
-            resp = await client.get(url, timeout=12.0)
-            if resp.status_code == 200:
-                raw = resp.json().get("data", [])
-                fallback_comments = []
-                for c in raw:
-                    comment = Comment.from_api_dict(c, clean_id)
-                    if self.filters.is_valid_comment(comment):
-                        fallback_comments.append(self.filters.filter_comment_record(comment))
-                return fallback_comments
-        except Exception:
-            pass
-        return []
+        return clean_id, filtered_comments, success
 
     async def _scrape_comments_async(self, post_ids: list[str], output_path: str, chunk_size: int = 500) -> int:
         if os.path.exists(output_path):
@@ -222,7 +169,7 @@ class RedditScraper:
         semaphore = asyncio.Semaphore(self.comment_workers)
         total_saved, buffer, failed_posts = 0, [], []
 
-        print(f"[*] Fetching comments for {len(post_ids):,} posts with {self.comment_workers} async workers...")
+        print(f"[*] Fetching comments using [{self.source.name}] for {len(post_ids):,} posts with {self.comment_workers} async workers...")
 
         with ParquetStreamer(output_path) as streamer:
             async with httpx.AsyncClient(limits=limits) as client:
@@ -263,7 +210,7 @@ class RedditScraper:
         chunk_size: int = 500,
     ) -> int:
         """
-        Concurrently scrapes comment trees for target posts and writes to Parquet.
+        Concurrently scrapes comments for target posts and writes to Parquet.
         """
         if not post_ids:
             print("[!] No post IDs provided for comment scraping.")
