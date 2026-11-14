@@ -2,7 +2,14 @@
 Reddit Scraper Library.
 A high-performance research toolkit for historical Reddit data.
 """
-from scripts.models import Post, Comment, PostField, CommentField, FieldEnum
+from scripts.models import (
+    Post,
+    Comment,
+    PostField,
+    CommentField,
+    FieldEnum,
+    UnretrievedFieldError,
+)
 from scripts.filters import Filters, resume_cohort_post_filter, default_comment_filter
 from scripts.sources import Source, BaseSource, ArcticShiftSource
 from scripts.storage import ParquetStreamer
@@ -14,6 +21,7 @@ __all__ = [
     "FieldEnum",
     "Post",
     "Comment",
+    "UnretrievedFieldError",
     "Filters",
     "resume_cohort_post_filter",
     "default_comment_filter",

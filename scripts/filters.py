@@ -12,8 +12,8 @@ from scripts.models import Post, Comment, PostField, CommentField
 
 
 def resume_cohort_post_filter(post: Post) -> bool:
-    """Standard cohort post filter: score > 0, num_comments > 10, URL is an image."""
-    return post.score > 0 and post.num_comments > 10 and post.is_image
+    """Standard cohort post filter: score > 0, num_comments > 10, post links to an image."""
+    return post.score > 0 and post.num_comments > 10 and post.has_image
 
 
 def default_comment_filter(comment: Comment) -> bool:
@@ -74,7 +74,7 @@ class Filters:
         if self.post_include_fields is None and self.post_exclude_fields is None:
             return None
 
-        # Essential for shard pagination and common property evaluation (is_image, score, num_comments)
+        # Essential for shard pagination and common property evaluation (has_image, score, num_comments)
         core_fields = {"id", "created_utc", "score", "num_comments", "url"}
 
         if self.post_include_fields is not None:

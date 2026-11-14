@@ -117,7 +117,7 @@ class RedditScraper:
                     if post_id in seen_ids:
                         continue
 
-                # Validate against known API fields and construct Post object
+                # Construct Post object directly from raw payload
                 post = Post.from_api_dict(raw_post)
 
                 # Evaluate custom filter with Post object
