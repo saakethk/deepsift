@@ -2,9 +2,10 @@
 Arctic Shift API data source implementation.
 """
 import time
+import asyncio
+from typing import Iterator, List, Dict, Any, Optional, Tuple, Iterable
 import requests
 import httpx
-from typing import Iterator, List, Dict, Any, Optional, Tuple, Iterable
 from scripts.sources.base import Source
 
 
@@ -15,10 +16,22 @@ class ArcticShiftSource(Source):
     """
 
     BASE_URL = "https://arctic-shift.photon-reddit.com"
+    DEFAULT_USER_AGENT = "reddit-research-scraper/0.2.0"
 
-    def __init__(self, base_url: str = BASE_URL, timeout: float = 15.0):
+    def __init__(
+        self,
+        base_url: str = BASE_URL,
+        timeout: float = 15.0,
+        rate_limit_delay: float = 0.3,
+        batch_size: int = 100,
+        user_agent: str = DEFAULT_USER_AGENT,
+    ):
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
+        self.rate_limit_delay = rate_limit_delay
+        self.batch_size = batch_size
+        self.user_agent = user_agent
+        self.headers = {"User-Agent": self.user_agent}
 
     @property
     def name(self) -> str:
@@ -38,19 +51,28 @@ class ArcticShiftSource(Source):
         """
         s = session or requests.Session()
         current_before = before_ts
-        fields_param = f"&fields={','.join(sorted(fields))}" if fields else ""
+        fields_str = ",".join(sorted(fields)) if fields else None
 
         while current_before > after_ts:
-            url = (
-                f"{self.base_url}/api/posts/search"
-                f"?subreddit={subreddit}&limit=100&before={current_before}&after={after_ts}{fields_param}"
-            )
+            params = {
+                "subreddit": subreddit,
+                "limit": self.batch_size,
+                "before": current_before,
+                "after": after_ts,
+            }
+            if fields_str:
+                params["fields"] = fields_str
 
             data = None
             backoff = 2.0
             for _ in range(5):
                 try:
-                    res = s.get(url, timeout=self.timeout)
+                    res = s.get(
+                        f"{self.base_url}/api/posts/search",
+                        params=params,
+                        headers=self.headers,
+                        timeout=self.timeout,
+                    )
                     if res.status_code == 200:
                         data = res.json().get("data", [])
                         break
@@ -69,9 +91,9 @@ class ArcticShiftSource(Source):
 
             yield data
 
-            oldest = data[-1]["created_utc"]
+            oldest = int(data[-1].get("created_utc", 0))
             current_before = current_before - 1 if oldest >= current_before else oldest
-            time.sleep(0.3)
+            time.sleep(self.rate_limit_delay)
 
     async def fetch_comments_for_post(
         self,
@@ -85,12 +107,18 @@ class ArcticShiftSource(Source):
         Tree endpoint is attempted first; falls back to search endpoint with fields projection if needed.
         """
         clean_id = str(post_id).replace("t3_", "")
-        tree_url = f"{self.base_url}/api/comments/tree?link_id=t3_{clean_id}"
+        tree_url = f"{self.base_url}/api/comments/tree"
+        params = {"link_id": f"t3_{clean_id}"}
         backoff = 2.0
 
         for _ in range(max_retries):
             try:
-                resp = await client.get(tree_url, timeout=12.0)
+                resp = await client.get(
+                    tree_url,
+                    params=params,
+                    headers=self.headers,
+                    timeout=self.timeout,
+                )
                 if resp.status_code == 200:
                     json_data = resp.json()
                     raw = json_data.get("data") or json_data.get("comments") or json_data
@@ -109,14 +137,20 @@ class ArcticShiftSource(Source):
         return clean_id, fallback, bool(fallback)
 
     def _unpack_nodes(self, nodes: Any, post_id: str) -> List[Dict[str, Any]]:
-        """Flattens Arctic Shift nested comment tree into raw dictionaries."""
+        """
+        Flattens nested comment tree into raw dictionaries using a stack.
+        Avoids recursion limits for deeply nested reply threads.
+        """
         flat = []
         if not isinstance(nodes, list):
             nodes = [nodes] if isinstance(nodes, dict) else []
 
-        for node in nodes:
+        stack = list(reversed(nodes))
+        while stack:
+            node = stack.pop()
             if not isinstance(node, dict):
                 continue
+
             raw_comment = node.get("comment") or node.get("data") or node
             comment_dict = dict(raw_comment)
             if "post_id" not in comment_dict:
@@ -125,18 +159,26 @@ class ArcticShiftSource(Source):
 
             replies = node.get("replies") or node.get("children") or []
             if isinstance(replies, list) and replies:
-                flat.extend(self._unpack_nodes(replies, post_id))
+                for child in reversed(replies):
+                    stack.append(child)
 
         return flat
 
     async def _fetch_search_fallback(
         self, client: httpx.AsyncClient, clean_id: str, fields: Optional[Iterable[str]] = None
     ) -> List[Dict[str, Any]]:
-        """Fallback to /api/comments/search with optional field projection."""
-        fields_param = f"&fields={','.join(sorted(fields))}" if fields else ""
-        url = f"{self.base_url}/api/comments/search?link_id=t3_{clean_id}&limit=100{fields_param}"
+        """Fallback to /api/comments/search with field projection."""
+        params = {"link_id": f"t3_{clean_id}", "limit": self.batch_size}
+        if fields:
+            params["fields"] = ",".join(sorted(fields))
+
         try:
-            resp = await client.get(url, timeout=12.0)
+            resp = await client.get(
+                f"{self.base_url}/api/comments/search",
+                params=params,
+                headers=self.headers,
+                timeout=self.timeout,
+            )
             if resp.status_code == 200:
                 raw = resp.json().get("data", [])
                 for item in raw:

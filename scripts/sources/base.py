@@ -48,6 +48,21 @@ class Source(ABC):
         """
         pass
 
+    def fetch_posts(
+        self,
+        subreddit: str,
+        after_ts: int,
+        before_ts: int,
+        fields: Optional[Iterable[str]] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Synchronously gathers all post dictionaries within [after_ts, before_ts] into a single list.
+        """
+        posts = []
+        for batch in self.fetch_posts_shard(subreddit, after_ts, before_ts, fields=fields):
+            posts.extend(batch)
+        return posts
+
     def fetch_comments(self, post_id: str, fields: Optional[Iterable[str]] = None) -> List[Dict[str, Any]]:
         """
         Synchronously fetches comments for a single post using a transient httpx client.

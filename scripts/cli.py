@@ -8,7 +8,7 @@ import pandas as pd
 
 from scripts.models import PostField, CommentField
 from scripts.filters import Filters, resume_cohort_post_filter
-from scripts.sources import ArcticShiftSource
+from scripts.sources import ArcticShiftSource, get_source
 from scripts.scraper import RedditScraper
 
 
@@ -66,7 +66,7 @@ def run(
 
     scraper = RedditScraper(
         filters=filters,
-        source=ArcticShiftSource(),
+        source=get_source(source),
         post_workers=post_workers,
         comment_workers=comment_workers,
         shard_days=shard_days,
