@@ -39,6 +39,8 @@ def run_scaling_benchmark(
         print(f"    Evaluating N={n:,} posts...")
         res = run_benchmark(
             mode="dummy",
+            after_ts=1704067200,
+            before_ts=1704153600,
             dummy_posts=n,
             dummy_comments_per_post=comments_per_post,
             dummy_seed=dummy_seed,

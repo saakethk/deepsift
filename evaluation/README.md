@@ -54,21 +54,27 @@ python -m evaluation.benchmark --mode live --subreddit resumes --from-ts 1704150
 
 ---
 
-## Benchmark Results (Synthetic 2,000 Posts / 20,000 Comments)
+## Live Benchmark Results (`r/resumes` on Arctic Shift API)
 
-```markdown
-# DeepSift vs Sequential Execution Evaluation
-Target Cohort: Synthetic (DummySource)
+Evaluated across real Reddit posts and comment reply trees:
+
+| Metric | DeepSift (Concurrent) | Sequential Baseline | Difference / Ratio |
+| :--- | :--- | :--- | :--- |
+| **Total Elapsed Time** | **10.586s** | 33.974s | **3.21x faster** |
+| **Posts Scraped** | 24 | 24 | Matches: ✓ |
+| **Comments Extracted** | 136 | 136 | Matches: ✓ |
+| **Post Processing Rate** | **2.3 posts/s** | 0.7 posts/s | **3.3x throughput** |
+| **Comment Processing Rate** | **12.8 comments/s** | 4.0 comments/s | **3.2x throughput** |
+
+---
+
+## Synthetic Scaling Benchmark (Up to 5,000 Posts / 25,000 Comments)
 
 | Metric | DeepSift | Sequential Baseline | Difference / Ratio |
 | :--- | :--- | :--- | :--- |
-| Total Elapsed Time | 0.981s | 5.446s | 5.55x faster |
-| Peak RAM Consumption | 35.72 MB | 20.93 MB | Flat streaming |
-| Posts Scraped | 2,000 | 2,000 | Matches: ✓ |
-| Comments Extracted | 20,000 | 20,000 | Matches: ✓ |
-| Post Processing Rate | 2,037.8 posts/s | 367.3 posts/s | 5.5x throughput |
-| Comment Processing Rate | 20,378.2 comments/s | 3,672.6 comments/s | 5.5x throughput |
-```
+| **5,000 Posts Elapsed Time** | **0.794s** | 14.021s | **17.65x faster** |
+| **Comments Throughput** | **31,486 comments/s** | 1,783 comments/s | **17.7x throughput** |
+| **Memory at 5,000 Posts** | **13.91 MB** | 26.27 MB | **1.89x less memory** |
 
 ### Key Takeaways
 1. **5.5x - 8x Throughput Advantage**: Asynchronous comment resolution and multi-threaded sharding eliminate I/O blocking.
