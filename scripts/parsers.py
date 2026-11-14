@@ -1,40 +1,28 @@
 """
-Data transformation functions that convert raw Arctic Shift JSON into standardized dictionaries.
+Data transformation functions that convert raw Arctic Shift JSON into validated Post and Comment objects.
 """
-from scripts.filters import is_valid_comment
+from typing import Optional, List
+from scripts.models import Post, Comment
+from scripts.filters import Filters
 
 
-def clean_post(post: dict) -> dict:
-    """Extracts and normalizes post fields into standard schema."""
-    return {
-        "id": str(post.get("id")),
-        "subreddit": str(post.get("subreddit") or "resumes"),
-        "title": str(post.get("title") or ""),
-        "selftext": str(post.get("selftext") or ""),
-        "url": str(post.get("url") or ""),
-        "score": int(post.get("score") or 0),
-        "num_comments": int(post.get("num_comments") or 0),
-        "flair": str(post.get("link_flair_text") or ""),
-        "created_utc": int(post.get("created_utc") or 0),
-    }
+def clean_post(post_dict: dict, filters: Optional[Filters] = None) -> dict:
+    """Validates raw post dictionary through Post class and returns standardized dict."""
+    post = Post.from_api_dict(post_dict)
+    return filters.filter_post_record(post) if filters else post.to_dict()
 
 
-def clean_comment(raw_node: dict, post_id: str) -> dict:
-    """Unwraps and normalizes raw comment node into standard schema."""
-    data = raw_node.get("comment") or raw_node.get("data") or raw_node
-    return {
-        "comment_id": str(data.get("id") or data.get("comment_id") or data.get("name") or "None"),
-        "post_id": str(post_id),
-        "author": str(data.get("author") or "[deleted]"),
-        "body": str(data.get("body") or ""),
-        "score": int(data.get("score") or 0),
-        "created_utc": int(data.get("created_utc") or 0),
-        "parent_id": str(data.get("parent_id") or ""),
-    }
+def clean_comment(raw_node: dict, post_id: str, filters: Optional[Filters] = None) -> dict:
+    """Validates raw comment dictionary through Comment class and returns standardized dict."""
+    comment = Comment.from_api_dict(raw_node, post_id)
+    return filters.filter_comment_record(comment) if filters else comment.to_dict()
 
 
-def unpack_comment_tree(nodes: list, post_id: str) -> list[dict]:
-    """Recursively flattens nested comment tree nodes and applies validation filters."""
+def unpack_comment_tree(nodes: list, post_id: str, filters: Optional[Filters] = None) -> List[dict]:
+    """Recursively traverses comment trees, validating nodes against Filters and applying column restrictions."""
+    if filters is None:
+        filters = Filters()
+
     flat = []
     if not isinstance(nodes, list):
         nodes = [nodes] if isinstance(nodes, dict) else []
@@ -43,13 +31,13 @@ def unpack_comment_tree(nodes: list, post_id: str) -> list[dict]:
         if not isinstance(node, dict):
             continue
 
-        comment = clean_comment(node, post_id)
-        if is_valid_comment(comment):
-            flat.append(comment)
+        comment = Comment.from_api_dict(node, post_id)
+        if filters.is_valid_comment(comment):
+            flat.append(filters.filter_comment_record(comment))
 
-        # Recursively unpack nested child replies
+        # Recursively unpack nested replies
         replies = node.get("replies") or node.get("children") or []
         if isinstance(replies, list) and replies:
-            flat.extend(unpack_comment_tree(replies, post_id))
+            flat.extend(unpack_comment_tree(replies, post_id, filters))
 
     return flat
