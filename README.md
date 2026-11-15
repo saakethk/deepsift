@@ -40,7 +40,7 @@ Comprehensive performance evaluations comparing DeepSift against sequential exec
 To run the evaluations:
 ```bash
 # Unified scaling benchmark (runs both Live API and Synthetic Dummy together)
-python -m evaluation.scaling_experiment
+python -m evaluation.benchmark
 ```
 For instructions on benchmarking and testing custom subreddits on the live API, see the [Evaluation & Benchmarking Guide](file:///Users/saakethkesireddy/Desktop/job_journal/resume_model/evaluation/README.md).
 

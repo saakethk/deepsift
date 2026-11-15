@@ -2,7 +2,7 @@
 Unit tests for the evaluation and benchmarking package.
 Verifies metrics generation, data parity checks, and report formatting.
 """
-from evaluation.benchmark import run_benchmark, format_markdown_report
+from evaluation.__main__ import run_benchmark, format_markdown_report
 
 
 def test_evaluation_run_benchmark_dummy():

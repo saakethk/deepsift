@@ -9,10 +9,8 @@ This directory provides quantitative performance evaluations comparing **DeepSif
 ```
 evaluation/
 ├── README.md               # Benchmarking and developer integration guide
-├── baseline.py             # Naive single-threaded sequential scraper baseline
-├── benchmark.py            # Comparative execution harness and CLI runner
-├── live_scaling.py         # Dedicated Live API scaling benchmark runner
-├── scaling_experiment.py   # Dedicated Synthetic scaling benchmark runner
+├── __init__.py             # Evaluation package marker
+├── benchmark.py            # Unified benchmark runner (scaling & smoke check)
 ├── utils.py                # Commit hashing, timestamp tagging, and latency tracking
 └── results/                # Timestamped experiment folders containing CSVs & graphs
     └── 20261115_170030/    # Unified Scaling Run (Both Live API and Synthetic Dummy executed together)
@@ -86,15 +84,13 @@ This structure keeps metrics, individual trial runs, and figures paired cleanly 
 
 ```bash
 # 1. Unified Scaling Benchmark (runs both Live API and Synthetic Dummy together)
-python -m evaluation.scaling_experiment
-# or:
 python -m evaluation.benchmark
 
 # 2. Run only Synthetic scaling
-python -m evaluation.scaling_experiment --mode dummy
+python -m evaluation.benchmark --mode dummy
 
 # 3. Run only Live scaling
-python -m evaluation.scaling_experiment --mode live
+python -m evaluation.benchmark --mode live
 
 # 4. Single-window quick smoke check
 python -m evaluation.benchmark --mode single
