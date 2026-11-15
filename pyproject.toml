@@ -8,8 +8,19 @@ version = "0.2.0"
 description = "High-performance historical Reddit research toolkit and scraper for Arctic Shift."
 readme = "README.md"
 requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [
-    { name = "Saaketh Kesireddy" }
+    { name = "Saaketh Kesireddy", email = "saakethr.kesireddy@gmail.com" }
+]
+keywords = ["reddit", "scraper", "research", "arctic-shift", "parquet", "dataset", "nlp"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
     "requests>=2.31.0",
@@ -24,7 +35,15 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0.0",
+    "build>=1.0.0",
+    "twine>=5.0.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/saakethk/resume_model"
+Documentation = "https://saakethk.github.io/resume_model/"
+Repository = "https://github.com/saakethk/resume_model.git"
+Issues = "https://github.com/saakethk/resume_model/issues"
 
 [project.scripts]
 deepsift = "deepsift.cli:cli"
