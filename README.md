@@ -29,16 +29,20 @@ To run the live integration tests against the actual Arctic Shift API:
 pytest -m live -v
 ```
 
-# Evaluation
-To compare DeepSift against naive sequential execution:
-```bash
-# Synthetic offline benchmark (2,000 posts, 20,000 comments)
-python -m evaluation.benchmark --mode dummy --dummy-posts 2000 --dummy-comments 10
+# Evaluation & Benchmarks
+Comprehensive performance evaluations comparing DeepSift against sequential execution:
 
-# Live Arctic Shift benchmark on r/resumes
-python -m evaluation.benchmark --mode live --subreddit resumes
+| Benchmark Scenario | Cohort Scale | DeepSift (6w) | Sequential (1w) | Speedup | Ingestion Dynamics | Resource Advantage |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Live API Ingestion** | 930 Posts (10 Days, `r/resumes`) | **3.58 ± 1.29s** | 14.91 ± 2.46s | **4.16x** | **799ms** avg API latency | **24.0x less bandwidth**, **16.8x less RAM** |
+| **Synthetic Scaling** | 1,000 Posts (`DummySource`) | **0.56 ± 0.01s** | 2.58 ± 0.00s | **4.59x** | **250ms** simulated latency | **1.4x less RAM** (streaming Parquet) |
+
+To run the evaluations:
+```bash
+# Unified scaling benchmark (runs both Live API and Synthetic Dummy together)
+python -m evaluation.scaling_experiment
 ```
-See [evaluation/README.md](file:///Users/saakethkesireddy/Desktop/job_journal/resume_model/evaluation/README.md) for full benchmark methodology and metrics.
+For instructions on benchmarking and testing custom subreddits on the live API, see the [Evaluation & Benchmarking Guide](file:///Users/saakethkesireddy/Desktop/job_journal/resume_model/evaluation/README.md).
 
 # TODO
 - [x] make static tests using dummy source (runs on github ci/cd)

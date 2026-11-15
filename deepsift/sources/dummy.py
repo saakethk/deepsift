@@ -2,6 +2,8 @@
 Dummy and mock data source for scalable offline testing and verification.
 Dynamically generates random, realistic posts and comments to stress-test pipelines.
 """
+import time
+import asyncio
 import random
 import zlib
 from typing import Iterator, List, Dict, Any, Optional, Tuple, Iterable
@@ -43,12 +45,14 @@ class DummySource(Source):
         comments_per_post: int = 5,
         match_ratio: float = 0.5,
         seed: Optional[int] = 42,
+        simulated_latency: float = 0.0,
     ):
         self.posts_per_shard = max(1, posts_per_shard)
         self.batch_size = max(1, batch_size)
         self.comments_per_post = max(0, comments_per_post)
         self.match_ratio = max(0.0, min(1.0, match_ratio))
         self.seed = seed
+        self.simulated_latency = max(0.0, float(simulated_latency))
 
     @property
     def name(self) -> str:
@@ -120,10 +124,14 @@ class DummySource(Source):
                 current_batch.append(full_record)
 
             if len(current_batch) >= self.batch_size:
+                if self.simulated_latency > 0:
+                    time.sleep(self.simulated_latency)
                 yield current_batch
                 current_batch = []
 
         if current_batch:
+            if self.simulated_latency > 0:
+                time.sleep(self.simulated_latency)
             yield current_batch
 
     async def fetch_comments_for_post(
@@ -137,6 +145,8 @@ class DummySource(Source):
         Dynamically generates random comments with realistic reply hierarchies for a post.
         Simulates server-side field projection if fields are provided.
         """
+        if self.simulated_latency > 0:
+            await asyncio.sleep(self.simulated_latency)
         clean_id = str(post_id).replace("t3_", "")
         fields_set = self.resolve_comment_fields(fields)
         base_hash = zlib.crc32(clean_id.encode())
