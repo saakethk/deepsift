@@ -125,6 +125,7 @@ def run_synthetic_scaling(
     trials: int = 3,
     results_dir: str = "evaluation/results",
     file_tag: Optional[str] = None,
+    window_post_counts: Optional[Dict[str, int]] = None,
 ) -> pd.DataFrame:
     """Executes synthetic scaling benchmark across 1, 2, 4, 6 worker levels with simulated API latency."""
     if windows is None:
@@ -137,13 +138,25 @@ def run_synthetic_scaling(
         file_tag = default_tag
 
     print(f"\n[*] Running Synthetic Scaling Benchmark ({trials} trials, {simulated_latency*1000:.0f}ms simulated latency, Commit: {commit_hash})...")
+    if window_post_counts:
+        print(f"    Matching post counts from live benchmark: {window_post_counts}")
 
     records = []
     trial_records = []
 
     with tempfile.TemporaryDirectory() as tmpdir:
         for label, after_ts, before_ts in windows:
-            print(f"    Evaluating synthetic window: {label}...")
+            target_posts = window_post_counts.get(label) if window_post_counts else None
+            shard_post_counts = None
+            if target_posts is not None:
+                dummy_scraper = RedditScraper(shard_days=1)
+                shards, _, _ = dummy_scraper._generate_shards(after_ts, before_ts)
+                n_shards = max(1, len(shards))
+                base = target_posts // n_shards
+                rem = target_posts % n_shards
+                shard_post_counts = {shard: base + (1 if idx < rem else 0) for idx, shard in enumerate(shards)}
+
+            print(f"    Evaluating synthetic window: {label} (target posts: {target_posts if target_posts is not None else '~default'})...")
 
             trial_times = {w: [] for w in WORKER_LEVELS}
             trial_rams = {w: [] for w in WORKER_LEVELS}
@@ -162,7 +175,7 @@ def run_synthetic_scaling(
                     scraper = RedditScraper(
                         filters=Filters(),
                         source=DummySource(
-                            posts_per_shard=100,
+                            posts_per_shard=shard_post_counts if shard_post_counts is not None else 100,
                             batch_size=100,
                             seed=dummy_seed + trial,
                             simulated_latency=simulated_latency,
@@ -410,17 +423,7 @@ def run_scaling_benchmark(
     print(f"================================================================================")
 
     results = {}
-
-    if mode in ("all", "dummy"):
-        df_synthetic = run_synthetic_scaling(
-            windows=windows,
-            dummy_seed=dummy_seed,
-            simulated_latency=simulated_latency,
-            trials=trials,
-            results_dir=results_dir,
-            file_tag=file_tag,
-        )
-        results["synthetic"] = df_synthetic
+    df_live = None
 
     if mode in ("all", "live"):
         df_live = run_live_scaling(
@@ -431,6 +434,22 @@ def run_scaling_benchmark(
             file_tag=file_tag,
         )
         results["live"] = df_live
+
+    if mode in ("all", "dummy"):
+        window_posts = None
+        if df_live is not None and not df_live.empty and "window" in df_live.columns and "posts" in df_live.columns:
+            window_posts = dict(zip(df_live["window"], df_live["posts"]))
+
+        df_synthetic = run_synthetic_scaling(
+            windows=windows,
+            dummy_seed=dummy_seed,
+            simulated_latency=simulated_latency,
+            trials=trials,
+            results_dir=results_dir,
+            file_tag=file_tag,
+            window_post_counts=window_posts,
+        )
+        results["synthetic"] = df_synthetic
 
     return results
 
@@ -586,13 +605,13 @@ def main():
             subreddit=args.subreddit,
         )
 
-        if "synthetic" in results:
-            print("\nSynthetic Scaling Summary Table:")
-            print(results["synthetic"][["window", "posts", "time_1w_sec", "time_2w_sec", "time_4w_sec", "time_6w_sec", "speedup_6w"]].to_string(index=False))
-
         if "live" in results:
             print("\nLive Scaling Summary Table:")
             print(results["live"][["window", "posts", "time_1w_sec", "time_2w_sec", "time_4w_sec", "time_6w_sec", "speedup_6w"]].to_string(index=False))
+
+        if "synthetic" in results:
+            print("\nSynthetic Scaling Summary Table:")
+            print(results["synthetic"][["window", "posts", "time_1w_sec", "time_2w_sec", "time_4w_sec", "time_6w_sec", "speedup_6w"]].to_string(index=False))
         return
 
     metrics = run_benchmark(

@@ -250,3 +250,25 @@ def test_pipeline_determinism_multiple_runs(tmp_path):
     table1_comments = sorted(pq.read_table(run1_comments).to_pylist(), key=lambda r: r["id"])
     table2_comments = sorted(pq.read_table(run2_comments).to_pylist(), key=lambda r: r["id"])
     assert table1_comments == table2_comments
+
+
+def test_dummy_source_custom_shard_counts(tmp_path):
+    posts_out = str(tmp_path / "custom_posts.parquet")
+    from_ts = 1704067200
+    to_ts = 1704240000
+
+    scraper = RedditScraper(shard_days=1)
+    shards, _, _ = scraper._generate_shards(from_ts, to_ts)
+    shard_counts = {shards[0]: 14, shards[1]: 28}
+
+    dummy = DummySource(posts_per_shard=shard_counts, match_ratio=1.0)
+    scraper.source = dummy
+
+    posts = scraper.scrape_posts(
+        subreddits=["resumes"],
+        from_dt=from_ts,
+        to_dt=to_ts,
+        output_path=posts_out,
+    )
+    assert len(posts) == 14 + 28
+

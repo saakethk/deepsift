@@ -40,12 +40,33 @@ Comprehensive performance evaluations comparing DeepSift against sequential exec
 To run the evaluations:
 ```bash
 # Unified scaling benchmark (runs both Live API and Synthetic Dummy together)
-python -m evaluation.benchmark
+python -m evaluation
 ```
-For instructions on benchmarking and testing custom subreddits on the live API, see the [Evaluation & Benchmarking Guide](file:///Users/saakethkesireddy/Desktop/job_journal/resume_model/evaluation/README.md).
+
+# Documentation Site
+The documentation site is powered by [MkDocs](https://www.mkdocs.org/) with the [Material for MkDocs](https://squidfunk.github.io/mkdocs-material/) theme.
+
+To serve the documentation locally with hot-reloading:
+```bash
+mkdocs serve
+```
+Then visit `http://127.0.0.1:8000` in your browser.
+
+To build the static HTML site (generated into `site/`):
+```bash
+mkdocs build
+```
+You can view the pre-built site directly: [site/index.html](file:///Users/saakethkesireddy/Desktop/job_journal/resume_model/site/index.html).
+
+Documentation sources are structured under [docs/](file:///Users/saakethkesireddy/Desktop/job_journal/resume_model/docs/):
+- [Overview & Architecture](file:///Users/saakethkesireddy/Desktop/job_journal/resume_model/docs/architecture.md)
+- [Quickstart Guide](file:///Users/saakethkesireddy/Desktop/job_journal/resume_model/docs/quickstart.md)
+- [Python API Reference](file:///Users/saakethkesireddy/Desktop/job_journal/resume_model/docs/api.md)
+- [CLI Reference](file:///Users/saakethkesireddy/Desktop/job_journal/resume_model/docs/cli.md)
+- [Benchmarks & Performance](file:///Users/saakethkesireddy/Desktop/job_journal/resume_model/docs/benchmarks.md)
 
 # TODO
 - [x] make static tests using dummy source (runs on github ci/cd)
 - [x] make live tests using actual source on r/resumes
 - [x] make evaluation script
-- [ ] writeup and documentation with benchmarks, docs page, and cleaned repo
+- [x] writeup and documentation with benchmarks, docs page, and cleaned repo

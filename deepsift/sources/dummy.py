@@ -6,7 +6,7 @@ import time
 import asyncio
 import random
 import zlib
-from typing import Iterator, List, Dict, Any, Optional, Tuple, Iterable
+from typing import Iterator, List, Dict, Any, Optional, Tuple, Iterable, Union, Callable
 import requests
 import httpx
 from deepsift.sources.base import Source
@@ -40,14 +40,14 @@ class DummySource(Source):
 
     def __init__(
         self,
-        posts_per_shard: int = 100,
+        posts_per_shard: Union[int, Dict[Tuple[int, int], int], Callable[[int, int], int]] = 100,
         batch_size: int = 100,
         comments_per_post: int = 5,
         match_ratio: float = 0.5,
         seed: Optional[int] = 42,
         simulated_latency: float = 0.0,
     ):
-        self.posts_per_shard = max(1, posts_per_shard)
+        self.posts_per_shard = posts_per_shard
         self.batch_size = max(1, batch_size)
         self.comments_per_post = max(0, comments_per_post)
         self.match_ratio = max(0.0, min(1.0, match_ratio))
@@ -74,7 +74,16 @@ class DummySource(Source):
         rng = random.Random(shard_seed)
         fields_set = self.resolve_post_fields(fields)
 
-        total_posts = self.posts_per_shard
+        if isinstance(self.posts_per_shard, dict):
+            total_posts = self.posts_per_shard.get((after_ts, before_ts), 100)
+        elif callable(self.posts_per_shard):
+            total_posts = self.posts_per_shard(after_ts, before_ts)
+        else:
+            total_posts = max(0, int(self.posts_per_shard))
+
+        if total_posts <= 0:
+            return
+
         time_step = max(1, (before_ts - after_ts) // (total_posts + 1))
 
         current_batch = []

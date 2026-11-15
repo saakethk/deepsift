@@ -1,0 +1,232 @@
+/* Ultra-Modern Developer Documentation Theme */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root {
+  --font-family-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-family-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+}
+
+/* Dark Mode Tokens (Deep Obsidian / Slate) */
+[data-md-color-scheme="slate"] {
+  --md-default-bg-color: #0b0f19;
+  --md-default-bg-color--light: #111827;
+  --md-default-bg-color--lighter: #1e293b;
+  --md-default-fg-color: #f1f5f9;
+  --md-default-fg-color--light: #94a3b8;
+  --md-default-fg-color--lighter: #64748b;
+  --md-default-fg-color--lightest: #475569;
+
+  --md-primary-fg-color: #38bdf8;
+  --md-primary-fg-color--light: #7dd3fc;
+  --md-primary-fg-color--dark: #0284c7;
+  --md-primary-bg-color: rgba(56, 189, 248, 0.1);
+
+  --md-accent-fg-color: #818cf8;
+  --md-accent-bg-color: rgba(129, 140, 248, 0.12);
+
+  --md-code-bg-color: #111827;
+  --md-code-fg-color: #e2e8f0;
+
+  --modern-border: 1px solid rgba(255, 255, 255, 0.08);
+  --modern-border-subtle: 1px solid rgba(255, 255, 255, 0.04);
+  --modern-card-bg: #111827;
+  --modern-glass-header: rgba(11, 15, 25, 0.85);
+}
+
+/* Light Mode Tokens (Clean Crisp White & Slate) */
+[data-md-color-scheme="default"] {
+  --md-default-bg-color: #ffffff;
+  --md-default-bg-color--light: #f8fafc;
+  --md-default-bg-color--lighter: #f1f5f9;
+  --md-default-fg-color: #0f172a;
+  --md-default-fg-color--light: #475569;
+  --md-default-fg-color--lighter: #64748b;
+  --md-default-fg-color--lightest: #94a3b8;
+
+  --md-primary-fg-color: #0284c7;
+  --md-primary-fg-color--light: #38bdf8;
+  --md-primary-fg-color--dark: #0369a1;
+  --md-primary-bg-color: rgba(2, 132, 199, 0.08);
+
+  --md-accent-fg-color: #6366f1;
+  --md-accent-bg-color: rgba(99, 102, 241, 0.08);
+
+  --md-code-bg-color: #f8fafc;
+  --md-code-fg-color: #0f172a;
+
+  --modern-border: 1px solid #e2e8f0;
+  --modern-border-subtle: 1px solid #f1f5f9;
+  --modern-card-bg: #f8fafc;
+  --modern-glass-header: rgba(255, 255, 255, 0.85);
+}
+
+/* Global Typography & Font Overrides */
+body, .md-typeset, .md-header, .md-tabs, .md-nav {
+  font-family: var(--font-family-sans) !important;
+  -webkit-font-smoothing: antialiased;
+}
+
+code, kbd, pre, .md-typeset pre, .md-typeset code {
+  font-family: var(--font-family-mono) !important;
+}
+
+/* Modern Glassmorphic Header */
+.md-header {
+  background: var(--modern-glass-header) !important;
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border-bottom: var(--modern-border) !important;
+  box-shadow: none !important;
+}
+
+.md-header__title {
+  font-weight: 700;
+  font-size: 1.05rem;
+  letter-spacing: -0.02em;
+}
+
+/* Modern Sticky Tabs Bar */
+.md-tabs {
+  background: var(--modern-glass-header) !important;
+  backdrop-filter: blur(16px);
+  border-bottom: var(--modern-border) !important;
+}
+
+.md-tabs__link {
+  font-size: 0.82rem !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.01em;
+  opacity: 0.75;
+  transition: all 0.15s ease;
+  border-radius: 6px;
+  padding: 6px 14px !important;
+}
+
+.md-tabs__link--active, .md-tabs__link:hover {
+  opacity: 1 !important;
+  background: var(--md-primary-bg-color);
+  color: var(--md-primary-fg-color) !important;
+}
+
+/* Modern Sidebar Navigation */
+.md-sidebar--primary {
+  border-right: var(--modern-border);
+}
+
+.md-sidebar--secondary {
+  border-left: var(--modern-border);
+}
+
+.md-nav__link {
+  font-size: 0.85rem !important;
+  border-radius: 6px;
+  padding: 6px 10px !important;
+  transition: all 0.15s ease;
+}
+
+.md-nav__link--active {
+  color: var(--md-primary-fg-color) !important;
+  font-weight: 600 !important;
+  background: var(--md-primary-bg-color);
+}
+
+.md-nav__link:hover:not(.md-nav__link--active) {
+  background: var(--md-default-bg-color--lighter);
+}
+
+/* Modern Card Containers */
+.modern-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+  margin: 24px 0;
+}
+
+.modern-card {
+  background: var(--modern-card-bg);
+  border: var(--modern-border);
+  border-radius: 10px;
+  padding: 20px;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.modern-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--md-primary-fg-color);
+  box-shadow: 0 10px 25px -5px rgba(56, 189, 248, 0.1);
+}
+
+.modern-card h4 {
+  margin: 0 0 8px 0;
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--md-default-fg-color);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modern-card p {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--md-default-fg-color--light);
+  line-height: 1.5;
+}
+
+/* Modern Code Blocks */
+.md-typeset pre > code {
+  border: var(--modern-border);
+  border-radius: 8px !important;
+  background-color: var(--md-code-bg-color) !important;
+}
+
+.highlight {
+  border-radius: 8px !important;
+  border: var(--modern-border);
+  overflow: hidden;
+}
+
+/* Modern Admonitions / Callouts */
+.md-typeset .admonition {
+  border-radius: 10px !important;
+  border: var(--modern-border) !important;
+  border-left-width: 4px !important;
+  box-shadow: none !important;
+}
+
+/* Modern Tables */
+.md-typeset table:not([class]) {
+  border-radius: 8px;
+  border: var(--modern-border);
+  overflow: hidden;
+  box-shadow: none;
+  font-size: 0.88rem;
+}
+
+.md-typeset table:not([class]) th {
+  background: var(--md-default-bg-color--lighter);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+}
+
+/* Search Modal */
+.md-search__inner {
+  border-radius: 12px !important;
+  border: var(--modern-border) !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5) !important;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.2);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.4);
+}
