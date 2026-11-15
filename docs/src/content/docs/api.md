@@ -1,4 +1,7 @@
-# API Reference
+---
+title: Python API Reference
+description: Technical class, method, and exception reference for DeepSift modules.
+---
 
 Detailed technical reference for the core DeepSift library modules.
 

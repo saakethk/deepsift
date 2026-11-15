@@ -1,0 +1,124 @@
+---
+title: DeepSift
+description: High-performance Python library for researchers to scrape and curate historical Reddit data at large scale.
+template: splash
+prev: false
+next: false
+hero:
+  tagline: A high-performance Python library engineered for researchers to scrape, filter, and curate historical Reddit datasets at massive scale.
+  actions:
+    - text: Quickstart
+      link: /quickstart/
+      icon: rocket
+      variant: primary
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## Built for Large-Scale Academic & Empirical Research
+
+Researchers in computational social science, NLP, and machine learning frequently face severe bottlenecks when collecting historical Reddit datasets: API throttling, network transfer limits on multi-gigabyte JSON payloads, and memory exhaustion when parsing millions of posts.
+
+DeepSift solves these challenges through architectural optimizations designed specifically for large-scale data collection:
+
+<CardGrid>
+  <Card title="Multi-Year Temporal Sharding" icon="rocket">
+    Partition multi-year date ranges across concurrent shard workers (`post_workers`) to maximize extraction speed across millions of historical submissions.
+  </Card>
+  <Card title="24x Less Wire Bandwidth" icon="laptop">
+    Mathematically computes minimal server-side field projections to request only the exact variables required by your study, cutting network payloads by 95%.
+  </Card>
+  <Card title="16.8x Lower Memory Overhead" icon="puzzle">
+    Streams batches straight to Apache Parquet via PyArrow with constant RAM usage, eliminating out-of-memory crashes on multi-million row cohorts.
+  </Card>
+  <Card title="Publication-Grade Reproducibility" icon="database">
+    Deterministic pipeline execution with structured failure logs (`errors.json`), git commit tracking, and offline synthetic test harnesses (`DummySource`).
+  </Card>
+</CardGrid>
+
+---
+
+## Quick Example: Curating a Research Cohort
+
+Extract submissions across a multi-month window, keeping only required analytical features:
+
+```python
+from deepsift.scraper import RedditScraper
+from deepsift.filters import Filters
+from deepsift.models import PostField
+
+# Request only research variables over the wire (cuts bandwidth by 24x)
+filters = Filters(
+    post_include_fields=[
+        PostField.ID,
+        PostField.TITLE,
+        PostField.SCORE,
+        PostField.NUM_COMMENTS,
+        PostField.CREATED_UTC,
+        PostField.AUTHOR,
+        PostField.SUBREDDIT,
+    ],
+    # Filter for quality engagement: positive score and discussion
+    post_filter=lambda post: post.score >= 5 and post.num_comments >= 3,
+)
+
+# 4 parallel worker threads sharded in 30-day temporal windows
+scraper = RedditScraper(filters=filters, post_workers=4, shard_days=30)
+
+post_ids = scraper.scrape_posts(
+    subreddits=["resumes"],
+    from_dt="2023-01-01",
+    to_dt="2024-01-01",
+    output_path="data/curated_cohort_1yr.parquet",
+)
+
+print(f"Curated {len(post_ids):,} research submissions streamed directly to Parquet.")
+```
+
+---
+
+## Explore the Documentation
+
+<CardGrid>
+  <Card title="Architecture & Pipeline" icon="setting">
+    Learn how temporal date sharding, async comment tree extraction, and streaming Parquet storage work.
+    [Read Architecture →](/architecture/)
+  </Card>
+  <Card title="Quickstart Guide" icon="open-book">
+    Get up and running with submission scraping, full pipelines, and offline testing using `DummySource`.
+    [Start Quickstart →](/quickstart/)
+  </Card>
+  <Card title="Python API Reference" icon="document">
+    Detailed class signatures and parameter references for `RedditScraper`, `Filters`, models, and storage.
+    [Browse API Reference →](/api/)
+  </Card>
+  <Card title="CLI Reference" icon="laptop">
+    Command-line utilities for `deepsift run`, `deepsift posts`, and `deepsift comments`.
+    [View CLI Commands →](/cli/)
+  </Card>
+  <Card title="Benchmarks & Scaling" icon="analytics">
+    Quantitative performance comparisons against sequential baselines across latency, RAM, and bandwidth.
+    [View Benchmarks →](/benchmarks/)
+  </Card>
+</CardGrid>
+
+---
+
+## Installation
+
+DeepSift requires Python 3.11+.
+
+```bash
+# Clone the repository
+git clone https://github.com/saakethk/resume_model.git
+cd resume_model
+
+# Install in editable mode with development dependencies
+pip install -e ".[dev]"
+```
+
+Verify your installation:
+
+```bash
+deepsift --help
+```

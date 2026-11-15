@@ -1,4 +1,7 @@
-# Command Line Interface (CLI)
+---
+title: CLI Reference
+description: Command-line reference and options for the deepsift executable.
+---
 
 DeepSift provides command-line utilities via the `deepsift` and `reddit-scraper` binaries.
 

@@ -1,0 +1,10 @@
+{
+  "name": "resume-model",
+  "private": true,
+  "scripts": {
+    "docs": "npm --prefix docs run dev",
+    "docs:force": "npm --prefix docs run dev -- --force",
+    "docs:build": "npm --prefix docs run build",
+    "docs:preview": "npm --prefix docs run preview"
+  }
+}

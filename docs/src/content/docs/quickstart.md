@@ -1,4 +1,7 @@
-# Quickstart Guide
+---
+title: Quickstart Guide
+description: Fast-track usage guide for scraping Reddit posts and comment trees with DeepSift.
+---
 
 This guide covers common usage patterns for DeepSift in Python.
 

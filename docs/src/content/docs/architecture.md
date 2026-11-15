@@ -1,6 +1,9 @@
-# Architecture & Ingestion Pipeline
+---
+title: Architecture & Pipeline
+description: In-depth technical architecture of DeepSift's sharded ingestion and streaming engine.
+---
 
-DeepSift coordinates data ingestion through decoupled, concurrent stages:
+DeepSift is engineered specifically for researchers needing to collect, filter, and curate Reddit datasets on a massive scale (multi-year cohorts across dozens of communities). To overcome the traditional pitfalls of large-scale scraping—API throttling, network transmission bottlenecks, and memory crashes—DeepSift decouples the ingestion pipeline into parallel stages:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐

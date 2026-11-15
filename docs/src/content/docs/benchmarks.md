@@ -1,4 +1,7 @@
-# Performance & Benchmarks
+---
+title: Performance & Benchmarks
+description: Benchmarking DeepSift against sequential scrapers across throughput, memory, and bandwidth.
+---
 
 DeepSift includes a benchmarking harness (`evaluation`) measuring throughput, latency, memory consumption, and concurrency speedup compared to naive sequential scrapers.
 

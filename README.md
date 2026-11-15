@@ -44,26 +44,36 @@ python -m evaluation
 ```
 
 # Documentation Site
-The documentation site is powered by [MkDocs](https://www.mkdocs.org/) with the [Material for MkDocs](https://squidfunk.github.io/mkdocs-material/) theme.
+The documentation site is built with [Starlight](https://starlight.astro.build/) by Astro.
 
-To serve the documentation locally with hot-reloading:
+To run the documentation dev server with hot-reloading:
 ```bash
-mkdocs serve
-```
-Then visit `http://127.0.0.1:8000` in your browser.
+# From project root:
+npm run docs
 
-To build the static HTML site (generated into `site/`):
+# Or with force cache reload:
+npm run docs:force
+
+# Or directly inside docs/ using npx:
+cd docs
+npx astro dev --force
+```
+Then visit `http://localhost:4321/` in your browser.
+
+To build the static production site:
 ```bash
-mkdocs build
+npm run docs:build
+# or: cd docs && npm run build
 ```
-You can view the pre-built site directly: [site/index.html](file:///Users/saakethkesireddy/Desktop/job_journal/resume_model/site/index.html).
+The compiled output is generated into [docs/dist/](file:///Users/saakethkesireddy/Desktop/job_journal/resume_model/docs/dist/) (pre-built and viewable at [docs/dist/index.html](file:///Users/saakethkesireddy/Desktop/job_journal/resume_model/docs/dist/index.html)).
 
-Documentation sources are structured under [docs/](file:///Users/saakethkesireddy/Desktop/job_journal/resume_model/docs/):
-- [Overview & Architecture](file:///Users/saakethkesireddy/Desktop/job_journal/resume_model/docs/architecture.md)
-- [Quickstart Guide](file:///Users/saakethkesireddy/Desktop/job_journal/resume_model/docs/quickstart.md)
-- [Python API Reference](file:///Users/saakethkesireddy/Desktop/job_journal/resume_model/docs/api.md)
-- [CLI Reference](file:///Users/saakethkesireddy/Desktop/job_journal/resume_model/docs/cli.md)
-- [Benchmarks & Performance](file:///Users/saakethkesireddy/Desktop/job_journal/resume_model/docs/benchmarks.md)
+Documentation content sources are structured in [docs/src/content/docs/](file:///Users/saakethkesireddy/Desktop/job_journal/resume_model/docs/src/content/docs/):
+- [Overview & Hero](file:///Users/saakethkesireddy/Desktop/job_journal/resume_model/docs/src/content/docs/index.mdx)
+- [Architecture & Pipeline](file:///Users/saakethkesireddy/Desktop/job_journal/resume_model/docs/src/content/docs/architecture.md)
+- [Quickstart Guide](file:///Users/saakethkesireddy/Desktop/job_journal/resume_model/docs/src/content/docs/quickstart.md)
+- [Python API Reference](file:///Users/saakethkesireddy/Desktop/job_journal/resume_model/docs/src/content/docs/api.md)
+- [CLI Reference](file:///Users/saakethkesireddy/Desktop/job_journal/resume_model/docs/src/content/docs/cli.md)
+- [Benchmarks & Performance](file:///Users/saakethkesireddy/Desktop/job_journal/resume_model/docs/src/content/docs/benchmarks.md)
 
 # TODO
 - [x] make static tests using dummy source (runs on github ci/cd)
