@@ -170,6 +170,9 @@ class ArcticShiftSource(Source):
             if not isinstance(node, dict):
                 continue
 
+            if node.get("kind") == "more":
+                continue
+
             raw_comment = None
             if "comment" in node and isinstance(node["comment"], dict):
                 raw_comment = node["comment"]
@@ -177,6 +180,12 @@ class ArcticShiftSource(Source):
                 raw_comment = node["data"]
             elif "body" in node or "id" in node or "author" in node:
                 raw_comment = node
+
+            if not raw_comment or raw_comment.get("kind") == "more":
+                continue
+
+            if "count" in raw_comment and "children" in raw_comment and "body" not in raw_comment:
+                continue
 
             replies = node.get("replies") or node.get("children") or []
             if raw_comment and not replies:
@@ -186,10 +195,8 @@ class ArcticShiftSource(Source):
                 replies = replies.get("data", {}).get("children", []) if "data" in replies else list(replies.values())
             if isinstance(replies, list) and replies:
                 for child in reversed(replies):
-                    stack.append(child)
-
-            if not raw_comment:
-                continue
+                    if isinstance(child, dict):
+                        stack.append(child)
 
             comment_dict = dict(raw_comment)
             if "post_id" not in comment_dict:

@@ -8,4 +8,4 @@ node_modules/
 .astro/
 dist/
 deepsift.egg-info
-
+data

@@ -272,3 +272,54 @@ def test_dummy_source_custom_shard_counts(tmp_path):
     )
     assert len(posts) == 14 + 28
 
+
+def test_unpack_nodes_filters_more_stubs():
+    from deepsift.sources.arctic_shift import ArcticShiftSource
+    source = ArcticShiftSource()
+
+    mock_tree = [
+        {
+            "kind": "t1",
+            "data": {
+                "id": "c101",
+                "parent_id": "t3_post1",
+                "body": "This is a real comment",
+                "score": 10,
+                "replies": {
+                    "data": {
+                        "children": [
+                            {
+                                "kind": "more",
+                                "data": {
+                                    "count": 5,
+                                    "name": "t1_c102",
+                                    "id": "c102",
+                                    "parent_id": "t1_c101",
+                                    "depth": 2,
+                                    "children": ["c103", "c104"],
+                                },
+                            }
+                        ]
+                    }
+                },
+            },
+        },
+        {
+            "kind": "more",
+            "data": {
+                "count": 3,
+                "name": "t1_top_more",
+                "id": "top_more",
+                "parent_id": "t3_post1",
+                "children": ["c105"],
+            },
+        },
+    ]
+
+    unpacked = source._unpack_nodes(mock_tree, "post1")
+    assert len(unpacked) == 1
+    assert unpacked[0]["id"] == "c101"
+    assert unpacked[0]["body"] == "This is a real comment"
+    assert unpacked[0]["post_id"] == "post1"
+
+

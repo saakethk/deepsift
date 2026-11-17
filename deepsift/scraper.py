@@ -280,7 +280,16 @@ class RedditScraper:
                     }
                     with self._errors_lock:
                         self.errors.append(error_entry)
-                return [c.to_dict() for raw_c in (raw or []) if self.filters.is_valid_comment(c := Comment(raw_c, cid))]
+                valid_comments = []
+                for raw_c in (raw or []):
+                    if not isinstance(raw_c, dict) or raw_c.get("kind") == "more":
+                        continue
+                    if "count" in raw_c and "children" in raw_c and "body" not in raw_c:
+                        continue
+                    c = Comment(raw_c, cid)
+                    if self.filters.is_valid_comment(c):
+                        valid_comments.append(c.to_dict())
+                return valid_comments
             except UnretrievedFieldError:
                 raise
             except Exception as e:
