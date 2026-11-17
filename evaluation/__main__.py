@@ -15,8 +15,11 @@ import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-os.environ["MPLCONFIGDIR"] = "/tmp/matplotlib_cache"
-import matplotlib.pyplot as plt
+try:
+    os.environ["MPLCONFIGDIR"] = "/tmp/matplotlib_cache"
+    import matplotlib.pyplot as plt
+except ImportError:
+    plt = None
 
 from deepsift.scraper import RedditScraper
 from deepsift.filters import Filters
@@ -47,8 +50,10 @@ def render_scaling_chart(
     title_prefix: str,
     commit_hash: str = "latest",
     extra_note: str = "",
-) -> plt.Figure:
+) -> Any:
     """Renders grouped bar comparison across 1, 2, 4, 6 shard workers with SEM error bars."""
+    if plt is None:
+        raise ImportError("matplotlib is required to render benchmark plots. Install it via `pip install matplotlib`.")
     plt.style.use("seaborn-v0_8-whitegrid" if "seaborn-v0_8-whitegrid" in plt.style.available else "default")
     fig, ax = plt.subplots(figsize=(12.5, 6.2), facecolor="#ffffff")
 
