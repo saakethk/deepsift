@@ -3,7 +3,8 @@ import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 
 export default defineConfig({
-  base: '/',
+  site: 'https://saakethk.github.io',
+  base: '/deepsift',
   integrations: [
     starlight({
       title: 'DeepSift',
