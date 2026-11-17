@@ -8,7 +8,7 @@ hero:
   tagline: A high-performance Python library engineered for researchers to scrape, filter, and curate historical Reddit datasets at massive scale.
   actions:
     - text: Quickstart
-      link: /quickstart/
+      link: /deepsift/quickstart/
       icon: rocket
       variant: primary
 ---
@@ -82,23 +82,23 @@ print(f"Curated {len(post_ids):,} research submissions streamed directly to Parq
 <CardGrid>
   <Card title="Architecture & Pipeline" icon="setting">
     Learn how temporal date sharding, async comment tree extraction, and streaming Parquet storage work.
-    [Read Architecture →](/architecture/)
+    [Read Architecture →](/deepsift/architecture/)
   </Card>
   <Card title="Quickstart Guide" icon="open-book">
     Get up and running with submission scraping, full pipelines, and offline testing using `DummySource`.
-    [Start Quickstart →](/quickstart/)
+    [Start Quickstart →](/deepsift/quickstart/)
   </Card>
   <Card title="Python API Reference" icon="document">
     Detailed class signatures and parameter references for `RedditScraper`, `Filters`, models, and storage.
-    [Browse API Reference →](/api/)
+    [Browse API Reference →](/deepsift/api/)
   </Card>
   <Card title="CLI Reference" icon="laptop">
     Command-line utilities for `deepsift run`, `deepsift posts`, and `deepsift comments`.
-    [View CLI Commands →](/cli/)
+    [View CLI Commands →](/deepsift/cli/)
   </Card>
   <Card title="Benchmarks & Scaling" icon="analytics">
     Quantitative performance comparisons against sequential baselines across latency, RAM, and bandwidth.
-    [View Benchmarks →](/benchmarks/)
+    [View Benchmarks →](/deepsift/benchmarks/)
   </Card>
 </CardGrid>
 
@@ -111,7 +111,7 @@ DeepSift requires Python 3.11+.
 ```bash
 # Clone the repository
 git clone https://github.com/saakethk/deepsift.git
-cd resume_model
+cd deepsift
 
 # Install in editable mode with development dependencies
 pip install -e ".[dev]"
