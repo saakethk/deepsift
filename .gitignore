@@ -1,11 +1,29 @@
-.venv
+# Virtual environments & local configs
+.venv/
 .env
-.DS_Store
+
+# Bytecode & Python caches
 __pycache__/
-*.pyc
-site/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ruff_cache/
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# Packaging & Build outputs
+build/
+dist/
+*.egg-info/
+src/*.egg-info/
+
+# Documentation & Node dependencies
 node_modules/
 .astro/
-dist/
-deepsift.egg-info
-data
+docs/dist/
+
+# Local data & outputs
+data/
+*.parquet
