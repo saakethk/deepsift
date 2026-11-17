@@ -40,10 +40,10 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/saakethk/resume_model"
-Documentation = "https://saakethk.github.io/resume_model/"
-Repository = "https://github.com/saakethk/resume_model.git"
-Issues = "https://github.com/saakethk/resume_model/issues"
+Homepage = "https://github.com/saakethk/deepsift"
+Documentation = "https://saakethk.github.io/deepsift/"
+Repository = "https://github.com/saakethk/deepsift.git"
+Issues = "https://github.com/saakethk/deepsift/issues"
 
 [project.scripts]
 deepsift = "deepsift.cli:cli"
